@@ -1,0 +1,120 @@
+name: RestoPro Full Build
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+  workflow_dispatch:
+
+  release:
+    types: [created]
+
+jobs:
+
+  #################################################
+  # FRONTEND NEXT.JS BUILD
+  #################################################
+  frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install NodeJS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Next.js
+        run: npm run build
+
+  #################################################
+  # WINDOWS EXE TAURI
+  #################################################
+  windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    needs: frontend
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Tauri Windows
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  #################################################
+  # ANDROID APK
+  #################################################
+  android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    needs: frontend
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Sync Android
+        run: npx cap sync android
+
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: restopro-apk
+          path: android/app/build/outputs/apk/release/*.apk
+
+  #################################################
+  # RELEASE FILES
+  #################################################
+  release-files:
+    name: Upload Release Files
+    runs-on: ubuntu-latest
+    needs: [windows, android]
+
+    steps:
+      - name: Finish
+        run: echo "Build terminé"

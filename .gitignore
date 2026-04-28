@@ -1,0 +1,103 @@
+# .gitignore for RestoPro (Next.js + Tauri + Android + Laravel)
+
+#################################################
+# NODE / PACKAGE MANAGERS
+#################################################
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+.pnpm-store/
+
+#################################################
+# NEXT.JS
+#################################################
+.next/
+out/
+build/
+
+#################################################
+# TAURI
+#################################################
+src-tauri/target/
+src-tauri/.cargo/
+*.msi
+*.exe
+*.deb
+*.AppImage
+*.dmg
+
+#################################################
+# ANDROID / CAPACITOR
+#################################################
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.apk
+*.aab
+
+#################################################
+# LARAVEL
+#################################################
+vendor/
+bootstrap/cache/*.php
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/app/public/*
+public/storage
+.phpunit.result.cache
+
+#################################################
+# TESTING
+#################################################
+coverage/
+
+#################################################
+# ENV FILES
+#################################################
+.env
+.env.*
+!.env.example
+
+#################################################
+# IDE / SYSTEM
+#################################################
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+#################################################
+# LOGS
+#################################################
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+laravel.log
+
+#################################################
+# TYPESCRIPT
+#################################################
+*.tsbuildinfo
+next-env.d.ts
+
+#################################################
+# VERCEL
+#################################################
+.vercel/
+
+#################################################
+# TEMP FILES
+#################################################
+*.tmp
+*.temp
+*.swp
