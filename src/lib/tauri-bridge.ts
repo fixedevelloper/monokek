@@ -2,66 +2,83 @@ import { invoke } from '@tauri-apps/api/core';
 
 /**
  * Vérifie si l'application s'exécute dans l'environnement Tauri.
+ * Version plus robuste pour Tauri v2
  */
 export const isTauri = (): boolean => {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+  return typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__ !== undefined;
 };
 
 /**
  * GESTION DE L'IMPRESSION (ESC/POS)
- * Envoie les données de la commande à la fonction native Rust.
  */
 export const printOrderReceipt = async (order: any, printerConfig: any) => {
   if (!isTauri()) {
-    console.warn("Impression simulée (Web) :", order);
+    console.warn("🖨️ Impression simulée (Web) :", order);
     return { success: true, message: "Simulated on web" };
   }
 
   try {
-    // 'print_thermal_receipt' est une fonction définie dans src-tauri/src/main.rs
+    // Note : On passe souvent un 'payload' structuré pour correspondre au Deserialize de Rust
     return await invoke('print_thermal_receipt', { 
-      data: order,
-      config: printerConfig 
+      payload: {
+        order,
+        config: printerConfig 
+      }
     });
   } catch (error) {
-    console.error("Erreur d'impression native :", error);
+    console.error("❌ Erreur d'impression native :", error);
     throw error;
   }
 };
 
 /**
- * SYNC LOGS & STOCK (SQLite Local ou File System)
- * Permet de sauvegarder une commande localement si le backend Laravel est injoignable.
+ * SAUVEGARDE HORS-LIGNE
  */
 export const saveOfflineOrder = async (order: any) => {
   if (!isTauri()) {
-    localStorage.setItem(`offline_order_${Date.now()}`, JSON.stringify(order));
+    const key = `offline_order_${Date.now()}`;
+    localStorage.setItem(key, JSON.stringify(order));
+    console.info("💾 Commande sauvegardée dans le LocalStorage (Web)");
     return;
   }
 
   try {
+    // 'save_to_local_db' doit être enregistré dans src-tauri/src/lib.rs ou main.rs
     return await invoke('save_to_local_db', { payload: order });
   } catch (error) {
-    console.error("Erreur sauvegarde locale Tauri :", error);
+    console.error("❌ Erreur sauvegarde locale Tauri :", error);
+    throw error;
   }
 };
 
 /**
  * SYSTÈME / NOTIFICATIONS NATIVES
+ * Optimisé pour ne pas re-importer le plugin à chaque appel
  */
-/* export const sendNativeNotification = async (title: string, body: string) => {
-  if (isTauri()) {
-    const { isPermissionGranted, requestPermission, sendNotification } = await import('@tauri-apps/plugin-notification');
+export const sendNativeNotification = async (title: string, body: string) => {
+  if (!isTauri()) {
+    console.info(`🔔 Notification Web: ${title} - ${body}`);
+    return;
+  }
+
+  try {
+    // Importation dynamique du plugin notification
+    const { 
+      isPermissionGranted, 
+      requestPermission, 
+      sendNotification 
+    } = await import('@tauri-apps/plugin-notification');
     
     let permission = await isPermissionGranted();
     if (!permission) {
-      permission = await requestPermission() === 'granted';
+      const permissionResponse = await requestPermission();
+      permission = permissionResponse === 'granted';
     }
     
     if (permission) {
-      sendNotification({ title, body });
+      sendNotification({ title, body, icon: 'info-icon' });
     }
-  } else {
-    alert(`${title}: ${body}`);
+  } catch (error) {
+    console.error("❌ Erreur notification native :", error);
   }
-}; */
+};

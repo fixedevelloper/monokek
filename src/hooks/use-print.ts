@@ -3,36 +3,41 @@ import { toast } from 'sonner';
 
 export const usePrint = () => {
 
-
   /**
    * Imprime un ticket de caisse (Client)
    */
   const printReceipt = async (order: any) => {
     if (!isTauri()) {
-      console.log("Simulation impression ticket client:", order);
+      console.log("🖥️ Simulation impression ticket client:", order);
+      toast.info("Mode Navigateur : Impression simulée en console.");
       return;
     }
 
+    // On lance un toast de chargement
+    const toastId = toast.loading("Impression du ticket client...");
+
     try {
-      // 'print_order' est une commande Rust définie dans src-tauri/src/main.rs
       await invoke('print_order', { 
         payload: {
           reference: order.reference,
-          items: order.items,
+          items: order.items.map((i: any) => ({
+            name: i.name,
+            price: i.price,
+            qty: i.quantity || i.qty
+          })),
           subtotal: order.subtotal,
           tax: order.tax,
           total: order.total,
           customer_name: order.customer?.name || 'Client Passant',
-          cashier_name: order.user?.name,
-          date: new Date().toLocaleString(),
+          cashier_name: order.user?.name || 'Système',
+          date: new Date().toLocaleString('fr-FR'),
         }
       });
+      
+      toast.success("Ticket imprimé avec succès", { id: toastId });
     } catch (error) {
-   /*    toast({
-        title: "Erreur d'impression",
-        description: "Impossible de joindre l'imprimante de caisse.",
-        variant: "destructive",
-      }); */
+      console.error("Print Error:", error);
+      toast.error("Erreur d'impression : Vérifiez la connexion de l'imprimante.", { id: toastId }); 
     }
   };
 
@@ -41,7 +46,7 @@ export const usePrint = () => {
    */
   const printKitchenTicket = async (items: any[], stationName: string) => {
     if (!isTauri()) {
-      console.log(`Simulation bon cuisine (${stationName}):`, items);
+      console.log(`👨‍🍳 Simulation bon cuisine (${stationName}):`, items);
       return;
     }
 
@@ -51,15 +56,17 @@ export const usePrint = () => {
           station: stationName,
           items: items.map(item => ({
             name: item.name,
-            qty: item.qty,
+            qty: item.qty || item.quantity,
             note: item.note || '',
             modifiers: item.modifiers?.map((m: any) => m.name) || [],
           })),
-          timestamp: new Date().toLocaleTimeString(),
+          timestamp: new Date().toLocaleTimeString('fr-FR'),
         }
       });
+      toast.success(`Bon envoyé en ${stationName}`);
     } catch (error) {
-      console.error("Erreur impression cuisine:", error);
+      console.error("Kitchen Print Error:", error);
+      toast.error(`Échec de l'envoi en ${stationName}`);
     }
   };
 

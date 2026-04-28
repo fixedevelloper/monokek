@@ -23,6 +23,8 @@ import { cn } from '@/lib/utils';
 import { Order, OrderStatus } from '@/src/types/menus';
 import api from '@/src/lib/axios';
 import { useUIStore } from '@/src/store/use-ui-store';
+import { toast } from 'sonner';
+import { usePrint } from '@/src/hooks/use-print';
 
 export default function PosSalesPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -30,6 +32,8 @@ export default function PosSalesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSale, setSelectedSale] = useState<Order | null>(null);
   const { openPayment } = useUIStore();
+
+  const { printReceipt } = usePrint();
   // 1. Récupération des données depuis Laravel
   const fetchOrders = async () => {
     try {
@@ -58,6 +62,38 @@ export default function PosSalesPage() {
     order.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
     order.amounts.total.toString().includes(searchTerm)
   );
+
+
+const handlePrint = async (selectedSale: any) => {
+    if (!selectedSale) {
+        toast.error("Aucune vente sélectionnée pour l'impression");
+        return;
+    }
+
+    try {
+        // 1. Préparation des données pour le format thermique (ESC/POS)
+        // On s'assure que la structure correspond au OrderPayload de Rust
+        const printData = {
+            reference: selectedSale.reference || `REC-${selectedSale.id}`,
+            customer_name: selectedSale.customer?.name || "Client Passant",
+            date: new Date(selectedSale.created_at).toLocaleString('fr-FR'),
+            total: parseFloat(selectedSale.total_amount),
+            items: selectedSale.items.map((item: any) => ({
+                name: item.product?.name || item.name,
+                qty: parseInt(item.quantity || item.qty),
+                price: parseFloat(item.unit_price || item.price)
+            }))
+        };
+
+        // 2. Appel de la fonction d'impression du Hook
+        // Ce hook appellera 'invoke' vers Rust si on est sous Tauri
+        await printReceipt(printData);
+
+    } catch (error) {
+        console.error("Erreur lors de la préparation de l'impression:", error);
+        toast.error("Impossible de générer le ticket de caisse");
+    }
+};
 
   return (
     <div className="flex flex-col h-full w-full bg-muted/20">
@@ -186,10 +222,10 @@ export default function PosSalesPage() {
                 <div className="grid grid-cols-2 gap-6">
                   <Button
                     className="h-20 flex flex-col gap-1 rounded-3xl shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90 transition-all active:scale-95"
-                  /*  onClick={() =>
-                      handlePrint(selectedSale.id)
+                  onClick={() =>
+                      handlePrint(selectedSale)
              
-                   } */
+                   } 
                   >
                     <Printer className="h-6 w-6" />
                     <span className="text-[10px] font-black uppercase tracking-widest">Imprimer Facture</span>
