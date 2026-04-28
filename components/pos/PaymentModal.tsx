@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
   Banknote, 
-  Smartphone, 
+  Smartphone, SmartphoneCharging,
   CreditCard, 
   Delete, 
   CheckCircle2, 
@@ -23,7 +23,8 @@ import api from '@/src/lib/axios';
 
 const PAYMENT_METHODS = [
   { id: 1, name: 'Espèces', icon: Banknote, key: 'cash' },
-  { id: 2, name: 'MoMo / OM', icon: Smartphone, key: 'mobile_money' },
+  { id: 2, name: 'MoMo', icon: Smartphone, key: 'momo' },
+   { id: 4, name: 'OM', icon: SmartphoneCharging, key: 'om' },
   { id: 3, name: 'Carte Bancaire', icon: CreditCard, key: 'card' },
 ] as const;
 
@@ -150,7 +151,7 @@ const handleFinalize = async () => {
           </DialogHeader>
 
           {/* Sélecteur de méthode */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             {PAYMENT_METHODS.map((method) => {
               const active = selectedMethod === method.id;
               return (

@@ -52,14 +52,14 @@ export default function RestaurantAdminTables() {
         setIsEditModalOpen(true);
     };
     const handleDelete = async (id: number) => {
-  try {
-    await api.delete(`/api/pos/tables/${id}`);
-    toast.success("Table supprimée");
-    fetchZones(); // Rafraîchir les données
-  } catch (error) {
-    toast.error("Impossible de supprimer la table");
-  }
-};
+        try {
+            await api.delete(`/api/pos/tables/${id}`);
+            toast.success("Table supprimée");
+            fetchZones(); // Rafraîchir les données
+        } catch (error) {
+            toast.error("Impossible de supprimer la table");
+        }
+    };
     return (
         <div className="flex flex-col gap-10 p-8 max-w-7xl mx-auto min-h-screen">
             {/* Header */}
@@ -99,36 +99,36 @@ export default function RestaurantAdminTables() {
                     </div>
 
                     <div className="flex items-center gap-3 w-full md:w-auto">
-    {/* Nouveau Bouton : Gérer les Zones */}
-    <Button
-        variant="outline"
-        onClick={() => router.push('/admin/floors')}
-        className="h-12 px-5 rounded-2xl border-stone-200 bg-white text-stone-600 shadow-sm transition-all hover:bg-stone-900 hover:text-white hover:border-stone-900 active:scale-95 flex items-center gap-2 group"
-    >
-        <Layers className="h-4 w-4 text-orange-500 transition-colors group-hover:text-white" />
-        <span className="text-[10px] font-black uppercase tracking-widest">Zones</span>
-    </Button>
+                        {/* Nouveau Bouton : Gérer les Zones */}
+                        <Button
+                            variant="outline"
+                            onClick={() => router.push('/admin/floors')}
+                            className="h-12 px-5 rounded-2xl border-stone-200 bg-white text-stone-600 shadow-sm transition-all hover:bg-stone-900 hover:text-white hover:border-stone-900 active:scale-95 flex items-center gap-2 group"
+                        >
+                            <Layers className="h-4 w-4 text-orange-500 transition-colors group-hover:text-white" />
+                            <span className="text-[10px] font-black uppercase tracking-widest">Zones</span>
+                        </Button>
 
-    {/* Bouton Refresh */}
-    <Button
-        variant="outline"
-        size="icon"
-        onClick={fetchZones}
-        disabled={loading}
-        className="h-12 w-12 rounded-2xl border-stone-200 bg-white text-stone-600 shadow-sm transition-all hover:bg-stone-50 hover:border-stone-300 active:scale-95 disabled:opacity-50"
-    >
-        <RefreshCcw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
-    </Button>
+                        {/* Bouton Refresh */}
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={fetchZones}
+                            disabled={loading}
+                            className="h-12 w-12 rounded-2xl border-stone-200 bg-white text-stone-600 shadow-sm transition-all hover:bg-stone-50 hover:border-stone-300 active:scale-95 disabled:opacity-50"
+                        >
+                            <RefreshCcw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+                        </Button>
 
-    {/* Modal pour ajouter une table */}
-    <div className="flex-1 md:flex-none">
-        <AddTableModal
-            floors={zones}
-            onSuccess={fetchZones}
-            activeFloorId={''}
-        />
-    </div>
-</div>
+                        {/* Modal pour ajouter une table */}
+                        <div className="flex-1 md:flex-none">
+                            <AddTableModal
+                                floors={zones}
+                                onSuccess={fetchZones}
+                                activeFloorId={''}
+                            />
+                        </div>
+                    </div>
                 </div>
             </header>
 

@@ -1,47 +1,50 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../store/use-auth-store';
-import { Store } from "tauri-plugin-store-api";
 
-// Importation dynamique ou vérification de l'environnement
+// 1. Détection robuste de l'environnement Tauri
 export const isTauri =
     typeof window !== "undefined" &&
-    "__TAURI_INTERNALS__" in window;
+    window.hasOwnProperty("__TAURI_INTERNALS__");
+
 /**
- * Instance Axios configurée pour communiquer avec le backend Laravel.
- * On utilise les variables d'environnement pour l'URL de l'API.
+ * Instance Axios de base
  */
 const api: AxiosInstance = axios.create({
+    // URL par défaut si le store est vide ou si on est sur navigateur
     baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
     },
-    timeout: 10000, // 10 secondes (critique pour le POS en cas de micro-coupures)
+    timeout: 10000, 
 });
 
 /**
  * INTERCEPTEUR DE REQUÊTE
- * Injecte automatiquement le token JWT ou Sanctum dans chaque appel.
  */
+// src/lib/axios.ts
 api.interceptors.request.use(
     async (config: InternalAxiosRequestConfig) => {
-        // On ne tente de lire le store que si on est dans l'environnement Tauri
-        if (isTauri) {
+        if (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__) {
             try {
-                const { Store } = await import("tauri-plugin-store-api");
-                const store = new Store(".settings.dat");
-                const savedIp = await store.get("backend-ip");
+                // Importation du plugin Store V2
+                const { load } = await import("@tauri-apps/plugin-store");
+                
+                // On charge le store (si déjà chargé, il renvoie l'instance existante)
+              const store = await load(".settings.json", {
+  autoSave: true,
+  defaults: {}
+});
+                const savedIp = await store.get<string>("backend-ip");
 
                 if (savedIp) {
-                    const baseUrl =
-                        typeof savedIp === "string" && savedIp.startsWith("http")
-                            ? savedIp
-                            : `http://${savedIp}`;
-                    config.baseURL = `${baseUrl}/api`;
+                    const cleanIp = savedIp.trim().replace(/\/+$/, "");
+                    const baseUrl = cleanIp.startsWith("http") ? cleanIp : `http://${cleanIp}`;
+                    config.baseURL = `${baseUrl}/`;
                 }
             } catch (e) {
-                console.error("Erreur Store Tauri:", e);
+                console.warn("Échec récupération IP via Store V2");
             }
         }
 
@@ -57,33 +60,18 @@ api.interceptors.request.use(
 
 /**
  * INTERCEPTEUR DE RÉPONSE
- * Gère les erreurs globales (401, 403, 500) et la déconnexion automatique.
  */
 api.interceptors.response.use(
     (response) => response,
     async (error) => {
         const originalRequest = error.config;
 
-        // 1. Gestion de l'expiration de session (401 Unauthorized)
         if (error.response?.status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
-
-            // On vide le store et on redirige vers le login
             useAuthStore.getState().logout();
             if (typeof window !== 'undefined') {
                 window.location.href = '/login';
             }
-        }
-
-        // 2. Gestion spécifique pour Tauri (Offline/Network Error)
-        if (!error.response) {
-            console.error("Erreur réseau ou serveur injoignable.");
-            // Ici tu pourrais déclencher un état 'isOffline' dans ton store de synchro
-        }
-
-        // 3. Erreur de permissions (403 Forbidden)
-        if (error.response?.status === 403) {
-            console.error("Accès refusé : Permissions insuffisantes.");
         }
 
         return Promise.reject(error);

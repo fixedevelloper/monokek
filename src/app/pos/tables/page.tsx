@@ -9,7 +9,8 @@ import {
   Plus,
   Search,
   LayoutDashboard,
-  Timer
+  Timer,
+  LogOut
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,7 @@ import { AddTableModal } from './AddTableModal';
 import { Floor } from '@/src/types/tables';
 import api from '@/src/lib/axios';
 import { toast } from 'sonner';
+import { useAuthStore } from '@/src/store/use-auth-store';
 
 
 
@@ -31,6 +33,12 @@ export default function TablesPage() {
   const [activeZoneId, setActiveZoneId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
+const logout = useAuthStore((state) => state.logout); // On suppose que tu as une action logout
+
+const handleLogout = () => {
+    logout();
+    router.push('/login');
+};
   const fetchZones = async () => {
     try {
       setLoading(true);
@@ -73,11 +81,21 @@ export default function TablesPage() {
           ))}
         </div>
 
-       {/*  <div className="flex items-center gap-2">
-          <AddTableModal
-            floors={zones}
-            onSuccess={fetchZones} activeFloorId={''} />
-        </div> */}
+      <div className="flex items-center gap-2">
+        <Button 
+                    variant="ghost" 
+                    onClick={handleLogout}
+                    className="group h-12 px-5 rounded-2xl border border-transparent hover:border-red-100 hover:bg-red-50 transition-all duration-300"
+                >
+                    <div className="flex items-center gap-3 text-stone-500 group-hover:text-red-600 transition-colors">
+                        <div className="flex flex-col items-end leading-none">
+                            <span className="text-[9px] font-black uppercase tracking-widest opacity-50">Session</span>
+                            <span className="text-xs font-bold uppercase tracking-wider">Quitter</span>
+                        </div>
+                        <LogOut size={20} className="transition-transform group-hover:translate-x-1" />
+                    </div>
+                </Button>
+        </div>
       </div>
 
     <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">

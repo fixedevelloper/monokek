@@ -1,14 +1,12 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Settings, Globe, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { toast } from 'sonner';
-// Note: Utilise tauri-plugin-store pour la persistance
-import { Store } from "tauri-plugin-store-api";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 export default function SetupPage() {
     const router = useRouter();
@@ -16,60 +14,79 @@ export default function SetupPage() {
     const [testing, setTesting] = useState(false);
     const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
-    // On charge l'IP existante au démarrage si elle existe
+    // 1. Chargement initial avec la syntaxe V2
     useEffect(() => {
         const loadConfig = async () => {
-            const store = new Store(".settings.dat");
-            const savedIp = await store.get<string>("backend-ip");
-            if (savedIp) setIp(savedIp);
+            try {
+                const { load } = await import("@tauri-apps/plugin-store");
+               const store = await load(".settings.json", {
+  autoSave: true,
+  defaults: {}
+});
+                const savedIp = await store.get<string>("backend-ip");
+                if (savedIp) setIp(savedIp);
+            } catch (e) {
+                console.error("Erreur chargement config:", e);
+            }
         };
         loadConfig();
     }, []);
 
- const handleSave = async () => {
-    setTesting(true);
-    setStatus('idle');
+    const handleSave = async () => {
+        setTesting(true);
+        setStatus('idle');
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-    try {
-        // 1. Appel au ping
-        const response = await fetch(`http://${ip}/api/ping`, { 
-            signal: controller.signal 
-        });
-      
-        // .ok vérifie si le status est entre 200 et 299
-        if (!response.ok) throw new Error("Serveur injoignable");
-
-        const data = await response.json();
-
-        // On vérifie que le contenu est bien celui de TON backend
-        if (data.status === 'ok') {
-             console.log(response)
-            // 2. Stockage persistant dans Tauri
-            const { Store } = await import("tauri-plugin-store-api"); // Import dynamique par sécurité
-            const store = new Store(".settings.dat");
-            
-            await store.set("backend-ip", ip);
-            await store.save(); 
-
-            setStatus('success');
-            toast.success("Terminal connecté avec succès");
-            
-            setTimeout(() => router.push('/'), 1500);
-        } else {
-            throw new Error("Réponse invalide");
+        // Nettoyage de l'IP saisie par l'utilisateur (Cameroun style : on évite les erreurs de frappe)
+        let cleanIp = ip.trim().replace(/\/+$/, "");
+        if (!cleanIp.startsWith('http')) {
+            cleanIp = `http://${cleanIp}`;
         }
-    } catch (error) {
-        setStatus('error');
-        toast.error("Connexion échouée : vérifiez l'IP et le réseau");
-        console.error(error);
-    } finally {
-        clearTimeout(timeoutId);
-        setTesting(false);
-    }
-};
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // Timeout de 5s
+
+        try {
+            // 2. Test de connexion (Ping sur ton backend Laravel)
+            const response = await fetch(`${cleanIp}/api/ping`, { 
+                signal: controller.signal,
+                headers: { 'Accept': 'application/json' }
+            });
+          
+            if (!response.ok) throw new Error("Serveur injoignable");
+
+            const data = await response.json();
+
+            if (data.status === 'ok') {
+                // 3. Stockage persistant avec la syntaxe V2
+                const { load } = await import("@tauri-apps/plugin-store");
+               const store = await load(".settings.json", {
+  autoSave: true,
+  defaults: {}
+});
+                
+                // On stocke l'IP propre
+                await store.set("backend-ip", cleanIp.replace('http://', ''));
+                // Avec autoSave: true, le store.save() est géré automatiquement, 
+                // mais on peut le forcer pour être sûr avant la redirection
+                await store.save(); 
+
+                setStatus('success');
+                toast.success("Terminal connecté au serveur");
+                
+                // Petite pause pour laisser l'utilisateur voir le succès
+                setTimeout(() => router.push('/'), 1200);
+            } else {
+                throw new Error("Réponse invalide du serveur");
+            }
+        } catch (error) {
+            setStatus('error');
+            toast.error("Connexion échouée : vérifiez l'IP et le réseau");
+            console.error("Erreur Setup:", error);
+        } finally {
+            clearTimeout(timeoutId);
+            setTesting(false);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6">
@@ -83,7 +100,7 @@ export default function SetupPage() {
                         <div className="space-y-2">
                             <h1 className="text-3xl font-serif font-bold text-stone-900 italic">Configuration</h1>
                             <p className="text-sm text-stone-500 font-medium tracking-wide">
-                                Entrez l'adresse IP du serveur central (Laravel)
+                                Adresse IP du serveur central
                             </p>
                         </div>
 
@@ -93,8 +110,9 @@ export default function SetupPage() {
                                 <Input 
                                     value={ip}
                                     onChange={(e) => setIp(e.target.value)}
-                                    placeholder="192.168.1.50"
-                                    className="h-14 pl-12 rounded-2xl bg-stone-50 border-none font-mono font-bold text-lg text-stone-800 placeholder:text-stone-200"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+                                    placeholder="ex: 192.168.1.50"
+                                    className="h-14 pl-12 rounded-2xl bg-stone-50 border-none font-mono font-bold text-lg text-stone-800 placeholder:text-stone-200 focus-visible:ring-stone-900"
                                 />
                             </div>
 
@@ -106,12 +124,12 @@ export default function SetupPage() {
                                 }`}
                             >
                                 {testing ? <Loader2 className="animate-spin" /> : 
-                                 status === 'success' ? <CheckCircle2 /> : "Connecter le terminal"}
+                                 status === 'success' ? <CheckCircle2 /> : "Vérifier & Enregistrer"}
                             </Button>
 
                             {status === 'error' && (
-                                <div className="flex items-center gap-2 text-red-500 text-[10px] font-bold uppercase tracking-wider justify-center animate-in fade-in slide-in-from-top-1">
-                                    <AlertCircle size={14} /> Serveur introuvable
+                                <div className="flex items-center gap-2 text-red-500 text-[10px] font-bold uppercase tracking-wider justify-center animate-in fade-in zoom-in-95">
+                                    <AlertCircle size={14} /> Impossible de joindre le backend
                                 </div>
                             )}
                         </div>
@@ -120,7 +138,7 @@ export default function SetupPage() {
             </Card>
             
             <p className="absolute bottom-8 text-[10px] font-black uppercase tracking-[0.3em] text-stone-300">
-                Restaurant System v1.0 • Tauri Terminal
+                MONO-KEK POS • v2.0 • TAURI NATIVE
             </p>
         </div>
     );

@@ -15,9 +15,9 @@ export const usePrint = () => {
 
     // On lance un toast de chargement
     const toastId = toast.loading("Impression du ticket client...");
-
+    console.error("Print Order:", order);
     try {
-      await invoke('print_order', { 
+      await invoke('print_order', {
         payload: {
           reference: order.reference,
           items: order.items.map((i: any) => ({
@@ -33,11 +33,11 @@ export const usePrint = () => {
           date: new Date().toLocaleString('fr-FR'),
         }
       });
-      
+
       toast.success("Ticket imprimé avec succès", { id: toastId });
     } catch (error) {
       console.error("Print Error:", error);
-      toast.error("Erreur d'impression : Vérifiez la connexion de l'imprimante.", { id: toastId }); 
+      toast.error("Erreur d'impression : Vérifiez la connexion de l'imprimante.", { id: toastId });
     }
   };
 
@@ -51,7 +51,7 @@ export const usePrint = () => {
     }
 
     try {
-      await invoke('print_kitchen_item', { 
+      await invoke('print_kitchen_item', {
         payload: {
           station: stationName,
           items: items.map(item => ({

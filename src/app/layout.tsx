@@ -5,84 +5,85 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 //import Sidebar from "@/components/layout/Sidebar";
 import { Toaster } from "sonner";
-import { cn } from "@/lib/utils";
 import LockScreen from "./(auth)/lock/page";
 import QueryProvider from "../providers/QueryProvider";
 import { TooltipProvider } from "@/components/ui/tooltip"
 import PaymentModal from "@/components/pos/PaymentModal";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
 const inter = Inter({ subsets: ["latin"] });
-
+import { useEffect, useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { cn } from "@/lib/utils";
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   const router = useRouter();
   const pathname = usePathname();
+  const [isReady, setIsReady] = useState(false);
 
-  useEffect(() => {
+useEffect(() => {
     const checkConfig = async () => {
-      // 1. Ne pas vérifier si on est déjà sur la page /setup
-      if (pathname === '/setup') return;
+      const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
-      try {
-        const { Store } = await import("tauri-plugin-store-api");
-        const store = new Store(".settings.dat");
-        const savedIp = await store.get("backend-ip");
-        console.log(savedIp)
-        // 2. Si aucune IP n'est stockée, on redirige vers /setup
-        if (!savedIp) {
-          router.push('/setup');
+      if (isTauri) {
+        try {
+          // Utilisation de load() selon la doc V2
+          const { load } = await import("@tauri-apps/plugin-store");
+         const store = await load(".settings.json", {
+  autoSave: true,
+  defaults: {}
+});
+          
+          const savedIp = await store.get<string>("backend-ip");
+
+          if (!savedIp && pathname !== '/setup') {
+            router.push('/setup');
+          } else {
+            setIsReady(true);
+          }
+        } catch (e) {
+          console.error("Erreur Store V2:", e);
+          setIsReady(true);
         }
-      } catch (e) {
-        // Si on est dans un navigateur (hors Tauri), on ignore ou on gère différemment
-        console.warn("Environnement hors-Tauri détecté");
+      } else {
+        setIsReady(true);
       }
     };
 
     checkConfig();
   }, [pathname, router]);
+
   return (
     <html lang="fr" suppressHydrationWarning>
-      <body
-        className={cn(
-          "min-h-screen bg-background font-sans antialiased overflow-hidden",
-          inter.className
-        )}
-      >
+      <body className={cn("min-h-screen bg-background font-sans antialiased overflow-hidden", inter.className)}>
         <QueryProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="light"
-            enableSystem
-            disableTransitionOnChange
-          >
+          <ThemeProvider attribute="class" defaultTheme="light">
             <TooltipProvider>
-
-      
-            {/* Conteneur principal flexible */}
-            <div className="flex h-screen w-screen overflow-hidden">
               
-              {/* Sidebar fixe à gauche 
-              <Sidebar />*/}
-
-              {/* Zone de contenu dynamique */}
-              <main className="flex-1 flex flex-col min-w-0 bg-background relative">
-       
-                <div className="flex-1 overflow-auto">
-                  {children}
+              {/* On n'affiche le contenu que lorsque la vérification IP est faite */}
+              {isReady ? (
+                <div className="flex h-screen w-screen overflow-hidden">
+                  <main className="flex-1 flex flex-col min-w-0 bg-background relative">
+                    <div className="flex-1 overflow-auto">
+                      {children}
+                    </div>
+                  </main>
                 </div>
-              </main>
+              ) : (
+                // Optionnel : Un loader minimaliste pendant la vérification
+                <div className="h-screen w-screen flex items-center justify-center bg-background">
+                  <div className="animate-pulse font-black uppercase italic tracking-tighter text-2xl">
+                    Mono-Kek <span className="text-primary text-sm">Loading...</span>
+                  </div>
+                </div>
+              )}
 
-            </div>
-            <LockScreen />
-            <PaymentModal />
-            {/* Couche de notifications globale */}
-           <Toaster position="top-right" />
-                  </TooltipProvider>
+              <LockScreen />
+              <PaymentModal />
+              <Toaster position="top-right" />
+            </TooltipProvider>
           </ThemeProvider>
         </QueryProvider>
       </body>

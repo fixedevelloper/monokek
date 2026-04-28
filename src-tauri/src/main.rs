@@ -1,13 +1,9 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::Manager;
-
+// Cette ligne dit à Rust : "Va chercher le fichier lib.rs dans le même dossier"
+mod lib;
 
 fn main() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    // Appelle la fonction run() qui est dans lib.rs
+    lib::run();
 }

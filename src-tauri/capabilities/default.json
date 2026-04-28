@@ -12,9 +12,6 @@
     "store:allow-set",
     "store:allow-save",
     "store:default",
-    "notification:default",
-    "allow-greet",
-    "allow-print-thermal-receipt",
-    "allow-save-to-local-db"
+    "notification:default"
   ]
 }
