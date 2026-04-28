@@ -3,7 +3,9 @@ import { useAuthStore } from '../store/use-auth-store';
 import { Store } from "tauri-plugin-store-api";
 
 // Importation dynamique ou vérification de l'environnement
-const isTauri = typeof window !== 'undefined' && window.__TAURI_INTERNALS__ !== undefined;
+export const isTauri =
+    typeof window !== "undefined" &&
+    "__TAURI_INTERNALS__" in window;
 /**
  * Instance Axios configurée pour communiquer avec le backend Laravel.
  * On utilise les variables d'environnement pour l'URL de l'API.
@@ -32,7 +34,10 @@ api.interceptors.request.use(
                 const savedIp = await store.get("backend-ip");
 
                 if (savedIp) {
-                    const baseUrl = savedIp.startsWith('http') ? savedIp : `http://${savedIp}`;
+                    const baseUrl =
+                        typeof savedIp === "string" && savedIp.startsWith("http")
+                            ? savedIp
+                            : `http://${savedIp}`;
                     config.baseURL = `${baseUrl}/api`;
                 }
             } catch (e) {
@@ -44,7 +49,7 @@ api.interceptors.request.use(
         if (token && config.headers) {
             config.headers.Authorization = `Bearer ${token}`;
         }
-        
+
         return config;
     },
     (error) => Promise.reject(error)
@@ -62,7 +67,7 @@ api.interceptors.response.use(
         // 1. Gestion de l'expiration de session (401 Unauthorized)
         if (error.response?.status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
-            
+
             // On vide le store et on redirige vers le login
             useAuthStore.getState().logout();
             if (typeof window !== 'undefined') {

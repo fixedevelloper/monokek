@@ -64,7 +64,7 @@ const [roles, setRoles] = useState<Role[]>([]); // État pour stocker les rôles
         try {
             await api.post('/api/admin/staff', payload);
             
-            toast.success(`Le compte de ${payload.name} a été créé !`);
+            toast.success(`Le compte de ${payload} a été créé !`);
             setOpen(false);
             onStaffAdded();
             (e.target as HTMLFormElement).reset(); // Reset le formulaire

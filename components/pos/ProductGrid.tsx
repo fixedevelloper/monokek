@@ -5,9 +5,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, UtensilsCrossed } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useCart } from '@/hooks/use-cart';
-import { formatCurrency } from '@/lib/utils';
-import { Product } from '@/types/models';
+import { Product } from '@/src/types/menus';
+import { useCart } from '@/src/hooks/use-cart';
+import { formatCurrency } from '@/src/lib/formatCurrency';
+
 
 interface ProductGridProps {
   products: Product[];
@@ -24,7 +25,7 @@ export default function ProductGrid({ products, categories }: ProductGridProps) 
     return products.filter(product => {
       const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase()) || 
                            product.sku?.toLowerCase().includes(search.toLowerCase());
-      const matchesCategory = activeCategory ? product.category_id === activeCategory : true;
+      const matchesCategory = activeCategory ? product.category.id === activeCategory : true;
       return matchesSearch && matchesCategory;
     });
   }, [products, search, activeCategory]);
@@ -89,8 +90,8 @@ export default function ProductGrid({ products, categories }: ProductGridProps) 
 
                   {/* Placeholder Image ou Image du produit */}
                   <div className="flex-1 bg-muted flex items-center justify-center overflow-hidden">
-                    {product.image_url ? (
-                      <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+                    {product.sku ? (
+                      <img src={product.sku} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
                     ) : (
                       <UtensilsCrossed className="h-10 w-10 text-muted-foreground/40" />
                     )}

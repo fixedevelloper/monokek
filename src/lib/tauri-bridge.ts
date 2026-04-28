@@ -49,7 +49,7 @@ export const saveOfflineOrder = async (order: any) => {
 /**
  * SYSTÈME / NOTIFICATIONS NATIVES
  */
-export const sendNativeNotification = async (title: string, body: string) => {
+/* export const sendNativeNotification = async (title: string, body: string) => {
   if (isTauri()) {
     const { isPermissionGranted, requestPermission, sendNotification } = await import('@tauri-apps/plugin-notification');
     
@@ -64,4 +64,4 @@ export const sendNativeNotification = async (title: string, body: string) => {
   } else {
     alert(`${title}: ${body}`);
   }
-};
+}; */

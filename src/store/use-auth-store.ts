@@ -5,7 +5,7 @@ interface User {
   id: number;
   uuid: string;
   name: string;
-  role: 'admin' | 'cashier' | 'waiter' | 'kitchen';
+  role: 'admin' | 'cashier' | 'waiter' | 'kitchen'| 'manager';
   permissions: string[];
   branch_id?: number;
 }

@@ -1,9 +1,9 @@
 "use client";
 
 import React from 'react';
-import { useAuth } from '@/hooks/use-auth';
-import { AppRole } from '@/constants/roles';
 import { ShieldAlert } from 'lucide-react';
+import { AppRole } from '@/src/constants/roles';
+import { useAuth } from '@/src/hooks/use-auth';
 
 interface RoleGuardProps {
   children: React.ReactNode;

@@ -5,7 +5,8 @@ import { Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { formatCurrency, cn } from '@/lib/utils';
+import {  cn } from '@/lib/utils';
+import { formatCurrency } from '@/src/lib/formatCurrency';
 
 interface Modifier {
   id: number;
@@ -26,8 +27,7 @@ export default function ModifierSelector({
   onClose, 
   productName, 
   modifiers, 
-  onConfirm 
- Suk} : ModifierSelectorProps) {
+  onConfirm } : ModifierSelectorProps) {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   const toggleModifier = (id: number) => {

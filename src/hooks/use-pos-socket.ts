@@ -1,12 +1,11 @@
 import { useEffect } from 'react';
-import Echo from 'laravel-echo';
-import Pusher from 'pusher-js';
-import { useToast } from '@/components/ui/use-toast';
-import { useAuthStore } from '@/store/use-auth-store';
+import { useAuthStore } from '../store/use-auth-store';
+import { useToast } from './use-cart';
+
 
 // Configuration de Laravel Echo
 // Note: Dans Tauri, window.Pusher est nécessaire pour Echo
-if (typeof window !== 'undefined') {
+/* if (typeof window !== 'undefined') {
     window.Pusher = Pusher;
 }
 
@@ -18,9 +17,9 @@ const echo = new Echo({
     wssPort: process.env.NEXT_PUBLIC_REVERB_PORT ?? 443,
     forceTLS: (process.env.NEXT_PUBLIC_REVERB_SCHEME ?? 'https') === 'https',
     enabledTransports: ['ws', 'wss'],
-});
+}); */
 
-export const usePosSocket = () => {
+/* export const usePosSocket = () => {
     const { user } = useAuthStore();
     const { toast } = useToast();
 
@@ -58,4 +57,4 @@ export const usePosSocket = () => {
     }, [user, toast]);
 
     return { echo };
-};
+}; */

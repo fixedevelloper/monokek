@@ -14,11 +14,11 @@ import {
   ChevronRight,
   Store
 } from 'lucide-react';
-import { useAuth } from '@/hooks/use-auth';
-import { useUIStore } from '@/store/use-ui-store';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import RoleGuard from '@/components/auth/RoleGuard';
+import { useUIStore } from '@/src/store/use-ui-store';
+import { useAuth } from '@/src/hooks/use-auth';
+import RoleGuard from './RoleGuard';
 
 const MENU_ITEMS = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/admin', roles: ['admin', 'manager'] },

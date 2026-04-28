@@ -39,7 +39,9 @@ export function PermissionsModal({ member, open, onOpenChange }: PermissionsModa
             };
             fetchData();
             // 2. Initialiser les permissions actuelles du membre
-            setUserPermissions(member.permissions);
+          setUserPermissions(
+  member.permissions?.map(p => p.name) ?? []
+);
         }
     }, [open, member]);
 

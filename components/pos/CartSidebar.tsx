@@ -5,10 +5,11 @@ import { Trash2, Plus, Minus, CreditCard, Send, ShoppingCart } from 'lucide-reac
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { useCart } from '@/hooks/use-cart';
-import { useUIStore } from '@/store/use-ui-store';
-import { formatCurrency } from '@/lib/utils';
+
 import { motion, AnimatePresence } from 'framer-motion';
+import { useUIStore } from '@/src/store/use-ui-store';
+import { useCart } from '@/src/hooks/use-cart';
+import { formatCurrency } from '@/src/lib/formatCurrency';
 
 export default function CartSidebar() {
   const { items, subtotal, tax, total, updateQty, removeItem, clearCart } = useCart();

@@ -5,7 +5,8 @@ import { AlertTriangle, ArrowRight, PackageOpen, History } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { cn, formatStock } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+import { formatStock } from '@/src/lib/utils';
 
 interface LowStockIngredient {
   id: number;

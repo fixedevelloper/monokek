@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { Clock, CheckCircle2, Utensils, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
-import { cn, formatCurrency } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 interface KitchenItem {
   id: number;

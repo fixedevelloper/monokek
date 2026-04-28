@@ -101,5 +101,6 @@ const login = async (credentials: any) => {
     isAdmin: user?.role === 'admin',
     isKitchen: user?.role === 'kitchen',
     isWaiter: user?.role === 'waiter',
+    isManager: user?.role === 'manager',
   };
 };
