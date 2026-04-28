@@ -8,113 +8,89 @@ on:
 
   workflow_dispatch:
 
-  release:
-    types: [created]
-
 jobs:
 
-  #################################################
-  # FRONTEND NEXT.JS BUILD
-  #################################################
+#################################################
+# FRONTEND NEXT BUILD
+#################################################
   frontend:
     name: Build Frontend
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install NodeJS
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      - name: Install Dependencies
-        run: npm install
+      - run: npm ci
+      - run: npm run build
 
-      - name: Build Next.js
-        run: npm run build
-
-  #################################################
-  # WINDOWS EXE TAURI
-  #################################################
+#################################################
+# WINDOWS EXE TAURI
+#################################################
   windows:
     name: Build Windows EXE
     runs-on: windows-latest
     needs: frontend
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Dependencies
-        run: npm install
+      - run: npm ci
+      - run: npm run build
 
-      - name: Build Tauri Windows
-        uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  #################################################
-  # ANDROID APK
-  #################################################
-  android:
+#################################################
+# ANDROID APK TAURI
+#################################################
+  android-tauri:
     name: Build Android APK
     runs-on: ubuntu-latest
     needs: frontend
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      - name: Install Java
-        uses: actions/setup-java@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      - name: Install Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v3
 
-      - name: Install Dependencies
-        run: npm install
+      - run: npm ci
+      - run: npm run build
 
-      - name: Sync Android
-        run: npx cap sync android
+      - run: npx tauri android init || true
+      - run: npx tauri android build
 
-      - name: Build APK
-        run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleRelease
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: restopro-apk
-          path: android/app/build/outputs/apk/release/*.apk
-
-  #################################################
-  # RELEASE FILES
-  #################################################
+#################################################
+# FIN
+#################################################
   release-files:
-    name: Upload Release Files
+    name: Finish Build
     runs-on: ubuntu-latest
-    needs: [windows, android]
+    needs: [windows, android-tauri]
 
     steps:
-      - name: Finish
-        run: echo "Build terminé"
+      - run: echo "Build terminé"
