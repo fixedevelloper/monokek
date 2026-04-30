@@ -20,13 +20,13 @@ export default function RegistersPage() {
 
     const selectRegister = async (reg: any) => {
         const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-        
+
         if (isTauri) {
             const { load } = await import("@tauri-apps/plugin-store");
             const store = await load(".settings.json", {
-  autoSave: true,
-  defaults: {}
-});
+                autoSave: true,
+                defaults: {}
+            });
             await store.set("register-id", reg.id);
             await store.set("register-name", reg.name);
             await store.save();

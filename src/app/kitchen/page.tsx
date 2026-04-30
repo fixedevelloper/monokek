@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useEcho } from "@/src/hooks/useEcho";
 
 interface KitchenStation {
     id: number;
@@ -21,9 +22,13 @@ export default function KitchenDashboard() {
     const [stations, setStations] = useState<KitchenStation[]>([]);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
+    const echo = useEcho();
     useEffect(() => {
+        // 1. Définition de la fonction de récupération
         const fetchStations = async () => {
             try {
+                // Pas besoin de mettre setLoading(true) à chaque fois, 
+                // sinon l'écran va clignoter toutes les 45s.
                 const { data } = await api.get("/api/kitchen/stations");
                 setStations(data.data);
             } catch (error) {
@@ -32,9 +37,36 @@ export default function KitchenDashboard() {
                 setLoading(false);
             }
         };
-        fetchStations();
-    }, []);
 
+        // 2. Exécution immédiate au montage
+        fetchStations();
+
+        // 3. Mise en place du polling (45 000 ms)
+const interval = setInterval(() => {
+    if (document.visibilityState === 'visible') {
+       // fetchStations();
+    }
+}, 45000);
+
+        // 4. Nettoyage : très important pour éviter les fuites de mémoire
+        return () => clearInterval(interval);
+    }, []);
+    useEffect(() => {
+        if (!echo) return;
+
+        const channel = echo.channel('kitchen.stations')
+            .listen('.station.updated', (station: any) => {
+                console.log('station')
+                console.log(station)
+                setStations(prev => prev.map(s =>
+                    s.id === station.id
+                        ? { ...s, pending_tickets_count: station.pending_tickets_count }
+                        : s
+                ));
+            });
+
+        return () => echo.leaveChannel('kitchen.stations');
+    }, [echo]);
     // Petit helper pour choisir une icône selon le nom de la station
     const getStationIcon = (name: string) => {
         const n = name.toLowerCase();

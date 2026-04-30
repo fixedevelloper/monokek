@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { 
-  ChefHat, Loader2, BellRing, LockIcon, 
-  ChevronLeft, Timer, CheckCircle2, PlayCircle 
+import {
+  ChefHat, Loader2, BellRing, LockIcon,
+  ChevronLeft, Timer, CheckCircle2, PlayCircle
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -14,22 +14,23 @@ import { Badge } from "@/components/ui/badge";
 import api from "@/src/lib/axios";
 import { KitchenTicket } from "@/src/types/tables";
 import { cn } from "@/lib/utils";
+import { useEcho } from "@/src/hooks/useEcho";
 
 export default function KitchenTicketsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  
+
   // On récupère l'ID de la station depuis l'URL (?tiket=ID)
   const stationId = searchParams.get('station');
-  
+
   const [tickets, setTickets] = useState<KitchenTicket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
+  const echo = useEcho();
   // 1. Fetch des tickets de la station
   const fetchTickets = async () => {
     if (!stationId) return;
     try {
-    
+
       const { data } = await api.get(`/api/kitchen/tickets`, {
         params: { station_id: stationId }
       });
@@ -40,12 +41,26 @@ export default function KitchenTicketsContent() {
       setIsLoading(false);
     }
   };
+  useEffect(() => {
+    if (!echo) return;
 
+    const channel = echo.channel(`kitchen.station.${stationId}`)
+      .listen('.ticket.created', (ticket: any) => {
+        // Le bar reçoit UNIQUEMENT ses boissons
+        console.log("Nouveau ticket cuisine:", ticket);
+        setTickets(prev => [ticket, ...prev]);
+
+        // Notification sonore spécifique à la station
+        new Audio('/sounds/notification.mp3').play();
+      });
+
+    return () => echo.leaveChannel(`kitchen.station.${stationId}`);
+  }, [echo, stationId]);
   useEffect(() => {
     fetchTickets();
     // Optionnel : Polling toutes les 30 secondes pour les nouveaux tickets
-    const interval = setInterval(fetchTickets, 30000);
-    return () => clearInterval(interval);
+    /*     const interval = setInterval(fetchTickets, 30000);
+        return () => clearInterval(interval); */
   }, [stationId]);
 
   // 2. Mise à jour du statut (Appel API Réel)
@@ -54,12 +69,12 @@ export default function KitchenTicketsContent() {
       await api.patch(`/api/kitchen/tickets/${ticketId}/status`, {
         status: nextStatus
       });
-      
+
       // Mise à jour locale pour la réactivité
-      setTickets(prev => prev.map(t => 
+      setTickets(prev => prev.map(t =>
         t.id === ticketId ? { ...t, status: nextStatus as any } : t
       ));
-      
+
       toast.success(`Ticket marqué comme ${nextStatus}`);
     } catch (error) {
       toast.error("Erreur lors du changement de statut");
@@ -86,13 +101,13 @@ export default function KitchenTicketsContent() {
 
   return (
     <div className="flex flex-col h-screen bg-slate-50 dark:bg-slate-950">
-      
+
       {/* HEADER CUISINE (Design Premium) */}
       <div className="bg-white dark:bg-slate-900 border-b shadow-sm z-20">
         <div className="p-4 md:p-6 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               onClick={() => router.push('/kitchen')}
               className="rounded-2xl h-12 w-12 bg-slate-100 dark:bg-slate-800"
             >
@@ -113,14 +128,14 @@ export default function KitchenTicketsContent() {
           </div>
 
           <div className="flex items-center gap-6">
-             <div className="hidden md:flex flex-col items-end">
-                <span className="text-2xl font-black text-primary">{tickets.length}</span>
-                <span className="text-[9px] font-black uppercase opacity-50">Tickets Actifs</span>
-             </div>
-             <div className="h-10 w-[1px] bg-slate-200 dark:bg-slate-800" />
-             <Button variant="outline" className="rounded-2xl border-2 font-black gap-2 h-12 uppercase text-[10px]">
-                <LockIcon size={16} /> Verrouiller
-             </Button>
+            <div className="hidden md:flex flex-col items-end">
+              <span className="text-2xl font-black text-primary">{tickets.length}</span>
+              <span className="text-[9px] font-black uppercase opacity-50">Tickets Actifs</span>
+            </div>
+            <div className="h-10 w-[1px] bg-slate-200 dark:bg-slate-800" />
+            <Button variant="outline" className="rounded-2xl border-2 font-black gap-2 h-12 uppercase text-[10px]">
+              <LockIcon size={16} /> Verrouiller
+            </Button>
           </div>
         </div>
       </div>
@@ -129,8 +144,8 @@ export default function KitchenTicketsContent() {
       <ScrollArea className="flex-1">
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 items-start">
           {tickets.map((ticket) => (
-            <div 
-              key={ticket.id} 
+            <div
+              key={ticket.id}
               className={cn(
                 "rounded-[2.5rem] bg-white dark:bg-slate-900 border-2 overflow-hidden shadow-sm transition-all",
                 ticket.status === 'preparing' ? "border-orange-500 shadow-orange-500/10" : "border-white dark:border-slate-800"
@@ -161,7 +176,7 @@ export default function KitchenTicketsContent() {
                     </div>
                     <div className="flex-1">
                       <p className="font-black text-sm uppercase leading-tight">{item.name}</p>
-                      {item.modifiers?.map((mod:any, midx:any) => (
+                      {item.modifiers?.map((mod: any, midx: any) => (
                         <span key={midx} className="text-[10px] font-bold text-orange-600 block">
                           + {mod.name}
                         </span>
@@ -174,18 +189,28 @@ export default function KitchenTicketsContent() {
               {/* Action Button */}
               <div className="p-4 bg-slate-50 dark:bg-slate-800/30">
                 {ticket.status === 'pending' ? (
-                  <Button 
+                  // État 1 : En attente -> Passer en préparation
+                  <Button
                     onClick={() => handleStatusChange(ticket.id, 'preparing')}
                     className="w-full h-12 rounded-2xl bg-slate-900 dark:bg-white dark:text-slate-900 font-black uppercase text-[10px] tracking-widest gap-2"
                   >
                     <PlayCircle size={16} /> Commencer
                   </Button>
-                ) : (
-                  <Button 
+                ) : ticket.status === 'preparing' ? (
+                  // État 2 : En préparation -> Passer à Prêt
+                  <Button
                     onClick={() => handleStatusChange(ticket.id, 'ready')}
                     className="w-full h-12 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black uppercase text-[10px] tracking-widest gap-2"
                   >
                     <CheckCircle2 size={16} /> Prêt à servir
+                  </Button>
+                ) : (
+                  // État 3 : Prêt -> Bouton désactivé et grisé
+                  <Button
+                    disabled
+                    className="w-full h-12 rounded-2xl bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 font-black uppercase text-[10px] tracking-widest gap-2 border-none cursor-not-allowed"
+                  >
+                    <CheckCircle2 size={16} /> Terminé
                   </Button>
                 )}
               </div>

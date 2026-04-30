@@ -1,157 +1,295 @@
 "use client";
 
-import React from 'react';
-import { 
-  TrendingUp, 
-  Users, 
-  Package, 
-  Wallet, 
-  Download, 
+import React, { useEffect, useState } from 'react';
+import {
+  TrendingUp,
+  Users,
+  Package,
+  Wallet,
+  Download,
   Calendar as CalendarIcon,
   ArrowUpRight,
   ArrowDownRight,
   PieChart as PieIcon,
   BarChart3,
   Badge,
-  ArrowLeft
+  ArrowLeft,
+  Clock,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { formatCurrency } from '@/src/lib/formatCurrency';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import api from '@/src/lib/axios';
+import { formatDateLong } from '@/src/lib/utils';
+import { format, subDays } from 'date-fns';
 
+import { Progress } from "@/components/ui/progress";
+import { Avatar } from "@/components/ui/avatar";
+import { fr } from 'date-fns/locale';
+import { Popover, PopoverContent, PopoverTrigger,PopoverClose } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 
 export default function ReportsPage() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  
+  // État de la période (Par défaut 30 jours)
+  const [dateRange, setDateRange] = useState({ 
+    from: subDays(new Date(), 30), 
+    to: new Date() 
+  });
+
+  const loadAnalytics = async () => {
+    try {
+      setLoading(true);
+      const start = format(dateRange.from, 'yyyy-MM-dd');
+      const end = dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : start;
+      
+      const res = await api.get(`/api/admin/analytics?start_date=${start}&end_date=${end}`);
+      setData(res.data);
+    } catch (err) {
+      console.error("Erreur lors du chargement des analytics", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // On recharge quand dateRange change (si on a bien les deux dates)
+  useEffect(() => {
+    if (dateRange.from && dateRange.to) {
+      loadAnalytics();
+    }
+  }, [dateRange]);
+
+  if (loading && !data) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center gap-4">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Calcul des performances...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-8 bg-muted/5 min-h-full">
       
-      {/* Header avec sélecteur de période */}
-<div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
-    <div className="flex items-center gap-4">
-        <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full bg-white shadow-sm hover:bg-slate-100 shrink-0"
-            asChild
-        >
-            <Link href="/admin">
-                <ArrowLeft size={20} />
-            </Link>
-        </Button>
-        <div>
+      {/* --- HEADER --- */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" className="rounded-full bg-white shadow-sm" asChild>
+            <Link href="/admin"><ArrowLeft size={20} /></Link>
+          </Button>
+          <div>
             <h1 className="text-3xl font-black tracking-tighter uppercase italic leading-none">Analytique</h1>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] mt-1">Performances de la succursale</p>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] mt-1">Succursale : Douala Sud</p>
+          </div>
         </div>
-    </div>
-    
-    <div className="flex items-center gap-3 w-full md:w-auto">
-        <Button variant="outline" className="flex-1 md:flex-none font-black text-[10px] uppercase gap-2 h-12 border-none bg-white shadow-sm hover:bg-slate-50 transition-all">
-            <CalendarIcon size={14} className="text-primary" /> Ce mois-ci
-        </Button>
-        <Button className="flex-1 md:flex-none font-black text-[10px] uppercase gap-2 h-12 shadow-xl shadow-primary/20 transition-transform active:scale-95">
-            <Download size={14} /> Exporter PDF
-        </Button>
-    </div>
-</div>
 
-      {/* 1. KPIs Principaux */}
+     <div className="flex items-center gap-3 w-full md:w-auto">
+  <div className="bg-white p-1 rounded-2xl shadow-sm border flex items-center gap-2">
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          id="date"
+          variant="ghost"
+          className={cn(
+            "h-10 px-4 justify-start text-left font-black uppercase text-[10px] tracking-widest",
+            !dateRange && "text-muted-foreground"
+          )}
+        >
+          <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+          {dateRange?.from ? (
+            dateRange.to ? (
+              <>
+                {format(dateRange.from, "dd MMM yyyy", { locale: fr })} -{" "}
+                {format(dateRange.to, "dd MMM yyyy", { locale: fr })}
+              </>
+            ) : (
+              format(dateRange.from, "dd MMM yyyy", { locale: fr })
+            )
+          ) : (
+            <span>Choisir une période</span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0 rounded-3xl border-none shadow-2xl" align="end">
+        <Calendar
+          initialFocus
+          mode="range"
+          defaultMonth={dateRange?.from}
+          selected={dateRange}
+          onSelect={(range: any) => setDateRange(range)}
+          numberOfMonths={2}
+          locale={fr}
+          className="p-4 font-bold"
+        />
+        {/* Bouton de confirmation pour forcer le reload si tu n'utilises pas l'useEffect automatique */}
+        <div className="p-3 border-t border-dashed flex justify-end">
+          <PopoverClose asChild>
+            <Button 
+                size="sm" 
+                className="rounded-xl font-black uppercase text-[10px]"
+                onClick={loadAnalytics}
+            >
+                Appliquer la période
+            </Button>
+          </PopoverClose>
+        </div>
+      </PopoverContent>
+    </Popover>
+  </div>
+
+  <Button className="font-black text-[10px] uppercase gap-2 h-12 shadow-xl shadow-primary/20 transition-all active:scale-95">
+    <Download size={14} /> Exporter PDF
+  </Button>
+</div>
+      </div>
+
+      {/* --- SECTION 1 : KPIs --- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <ReportStatCard 
-          title="Chiffre d'Affaires" 
-          value={formatCurrency(2450800)} 
-          trend="+14.2%" 
-          up={true} 
-          icon={<TrendingUp className="text-emerald-500" />} 
+        <ReportStatCard
+          title="Chiffre d'Affaires"
+          value={formatCurrency(data.kpis.total_sales)}
+          trend="+14.2%" up={true} icon={<TrendingUp className="text-emerald-500"/>}
         />
-        <ReportStatCard 
-          title="Commandes" 
-          value="842" 
-          trend="+5.1%" 
-          up={true} 
-          icon={<Users className="text-primary" />} 
+        <ReportStatCard
+          title="Commandes"
+          value={data.kpis.orders_count.toString()}
+          trend="+5.1%" up={true} icon={<Users className="text-primary"/>}
         />
-        <ReportStatCard 
-          title="Panier Moyen" 
-          value={formatCurrency(2910)} 
-          trend="-2.4%" 
-          up={false} 
-          icon={<Wallet className="text-orange-500" />} 
+        <ReportStatCard
+          title="Panier Moyen"
+          value={formatCurrency(data.kpis.average_cart)}
+          trend="-2.4%" up={false} icon={<Wallet className="text-orange-500"/>}
         />
-        <ReportStatCard 
-          title="Coût Matières" 
-          value="32%" 
-          trend="Stable" 
-          up={true} 
-          icon={<Package className="text-blue-500" />} 
+        <ReportStatCard
+          title="Coût Matières"
+          value={`${data.kpis.food_cost}%`}
+          trend="Stable" up={true} icon={<Package className="text-blue-500"/>}
         />
       </div>
 
-      {/* 2. Analyses Détaillées */}
-      <Tabs defaultValue="sales" className="space-y-6">
-        <TabsList className="bg-muted p-1 rounded-xl h-12">
-          <TabsTrigger value="sales" className="rounded-lg px-6 font-bold uppercase text-xs">Ventes & Flux</TabsTrigger>
-          <TabsTrigger value="products" className="rounded-lg px-6 font-bold uppercase text-xs">Produits Stars</TabsTrigger>
-          <TabsTrigger value="payments" className="rounded-lg px-6 font-bold uppercase text-xs">Modes de Paiement</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="sales" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Graphique des ventes (Placeholder pour Recharts) */}
-            <Card className="lg:col-span-2 border-none shadow-sm h-[400px] flex flex-col items-center justify-center bg-card">
-               <BarChart3 size={48} className="text-muted-foreground/20 mb-4" />
-               <p className="text-xs font-bold uppercase text-muted-foreground">Courbe des ventes journalières</p>
-            </Card>
-
-            {/* Top 5 Categories */}
-            <Card className="border-none shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-sm font-black uppercase italic">Top Catégories</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <CategoryProgress label="Grillades" percent={45} color="bg-primary" />
-                <CategoryProgress label="Boissons" percent={30} color="bg-emerald-500" />
-                <CategoryProgress label="Pizzas" percent={15} color="bg-orange-500" />
-                <CategoryProgress label="Entrées" percent={10} color="bg-blue-500" />
-              </CardContent>
-            </Card>
+      {/* --- SECTION 2 : GRAPHIQUES PRINCIPAUX --- */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Ventes Temporelles */}
+        <Card className="lg:col-span-2 border-none shadow-sm p-6 bg-white rounded-3xl">
+          <h3 className="text-xs font-black uppercase mb-6 text-slate-400 tracking-widest">Évolution des recettes</h3>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer>
+              <AreaChart data={data.chart_data}>
+                <defs>
+                  <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8884d8" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#8884d8" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="date" tickFormatter={(d) => format(new Date(d), 'dd MMM', {locale: fr})} fontSize={10} />
+                <YAxis hide />
+                <Tooltip 
+                  labelFormatter={(l) => formatDateLong(l)}
+                  formatter={(v: any) => [formatCurrency(v), "Recette"]}
+                  contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}
+                />
+                <Area type="monotone" dataKey="total" stroke="#8884d8" fill="url(#colorTotal)" strokeWidth={4} />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
-        </TabsContent>
+        </Card>
 
-        <TabsContent value="payments">
-          <Card className="border-none shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-sm font-black uppercase italic">Répartition des encaissements</CardTitle>
-            </CardHeader>
-            <CardContent>
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 py-6">
-                  <div className="text-center space-y-2">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground">Cash</p>
-                    <p className="text-2xl font-black">{formatCurrency(980300)}</p>
-                    <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                       <div className="h-full bg-emerald-500 w-[40%]" />
+        {/* Flux Horaire */}
+        <Card className="border-none shadow-sm p-6 bg-white rounded-3xl">
+          <h3 className="text-xs font-black uppercase mb-6 text-slate-400 tracking-widest flex items-center gap-2">
+            <Clock size={14} /> Heures de pointe
+          </h3>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer>
+              <BarChart data={data.hourly_flow}>
+                <XAxis dataKey="hour" tickFormatter={(h) => `${h}h`} fontSize={10} />
+                <Bar dataKey="count" fill="var(--primary)" radius={[6, 6, 6, 6]} />
+                <Tooltip cursor={{fill: 'transparent'}} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
+
+      {/* --- SECTION 3 : ÉQUIPE & PAIEMENTS --- */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Top Serveurs */}
+        <Card className="border-none shadow-sm p-6 bg-white rounded-3xl">
+          <CardHeader className="px-0 pt-0">
+            <CardTitle className="text-sm font-black uppercase italic">Performance Serveurs</CardTitle>
+          </CardHeader>
+          <div className="space-y-6">
+            {data.waiters.map((waiter: any) => (
+              <div key={waiter.name} className="space-y-2">
+                <div className="flex justify-between items-end">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-9 w-9 bg-primary/10 text-primary font-black flex items-center justify-center text-xs">
+                      {waiter.name.charAt(0)}
+                    </Avatar>
+                    <div>
+                      <p className="text-xs font-black uppercase">{waiter.name}</p>
+                      <p className="text-[10px] text-muted-foreground font-bold">{waiter.orders} commandes</p>
                     </div>
                   </div>
-                  <div className="text-center space-y-2">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground">Orange Money</p>
-                    <p className="text-2xl font-black">{formatCurrency(850200)}</p>
-                    <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                       <div className="h-full bg-orange-500 w-[35%]" />
-                    </div>
-                  </div>
-                  <div className="text-center space-y-2">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground">MTN MoMo</p>
-                    <p className="text-2xl font-black">{formatCurrency(620300)}</p>
-                    <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                       <div className="h-full bg-yellow-500 w-[25%]" />
-                    </div>
-                  </div>
-               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                  <p className="text-sm font-black text-primary">{formatCurrency(waiter.sales)}</p>
+                </div>
+                <Progress value={(waiter.sales / data.kpis.total_sales) * 100} className="h-1.5" />
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* Répartition Paiements */}
+        <Card className="border-none shadow-sm p-6 bg-white rounded-3xl">
+          <CardHeader className="px-0 pt-0 text-center">
+            <CardTitle className="text-sm font-black uppercase italic">Modes d'encaissement</CardTitle>
+          </CardHeader>
+          <div className="grid grid-cols-2 gap-4 h-full content-center">
+            {data.payments.map((p: any) => (
+              <div key={p.method_name} className="p-6 rounded-3xl bg-muted/20 border border-dashed flex flex-col items-center justify-center">
+                <span className="text-[9px] font-black uppercase text-muted-foreground mb-1">{p.method_name}</span>
+                <span className="text-xl font-black">{formatCurrency(p.total)}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+{/* --- SECTION 4 : PRODUITS STARS --- */}
+<Card className="border-none shadow-sm p-6 bg-white rounded-3xl lg:col-span-3">
+  <CardHeader className="px-0 pt-0">
+    <CardTitle className="text-sm font-black uppercase italic flex items-center gap-2">
+      <Package size={16} className="text-primary" /> Top 5 Produits (Volume de vente)
+    </CardTitle>
+  </CardHeader>
+  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+    {data.top_products.map((product: any, index: number) => (
+      <div 
+        key={product.name} 
+        className="relative p-4 rounded-2xl bg-muted/10 border border-transparent hover:border-primary/20 transition-all group"
+      >
+        <span className="absolute top-2 right-3 text-4xl font-black text-primary/5 group-hover:text-primary/10 transition-colors">
+          #{index + 1}
+        </span>
+        <p className="text-[11px] font-black uppercase truncate pr-6">{product.name}</p>
+        <div className="mt-4">
+          <p className="text-2xl font-black leading-none">{product.qty}</p>
+          <p className="text-[9px] font-bold text-muted-foreground uppercase">Unités vendues</p>
+        </div>
+        <div className="mt-2 pt-2 border-t border-dashed border-muted-foreground/20">
+          <p className="text-[10px] font-bold text-primary">{formatCurrency(product.revenue)}</p>
+        </div>
+      </div>
+    ))}
+  </div>
+</Card>
     </div>
   );
 }

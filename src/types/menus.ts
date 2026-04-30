@@ -36,7 +36,7 @@ export interface Category {
 }
 
 
-export type OrderStatus = 'draft' | 'pending' | 'pending_payment' | 'paid' | 'completed' | 'cancelled' | 'billing';
+export type OrderStatus = 'draft' | 'pending' | 'pending_payment' | 'paid' | 'completed' | 'cancelled' | 'billing'| 'ready'| 'preparing';
 export type OrderType = 'dinein' | 'takeaway' | 'delivery';
 
 export interface OrderItemModifier {

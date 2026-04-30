@@ -11,7 +11,10 @@ import {
     Clock,
     XCircle,
     ReceiptText,
-    CreditCard
+    CreditCard,
+    Lock,
+    HistoryIcon,
+    MoreVertical
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +32,8 @@ import { useCashStore } from '@/src/store/use-cash-store';
 import CashOpenModal from '../CashOpenModal';
 import { useRouter } from 'next/navigation';
 import CashReportTicket from '../CashReportTicket';
+import { useEcho } from '@/src/hooks/useEcho';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 export default function PosSalesPage() {
     const [orders, setOrders] = useState<Order[]>([]);
@@ -46,6 +51,32 @@ export default function PosSalesPage() {
     const { isOpen } = useCashStore();
 
     const [previewData, setPreviewData] = useState<any>(null);
+    const echo = useEcho();
+    useEffect(() => {
+        if (!echo) return;
+
+        const channel = echo.channel('orders');
+
+        // 1. Écouter les nouvelles commandes
+        channel.listen('.order.created', (newOrder: any) => {
+            setOrders(prev => [newOrder, ...prev]);
+            toast.success("Nouvelle commande !");
+        });
+
+        // 2. Écouter les mises à jour de statut
+        channel.listen('.order.updated', (updatedOrder: any) => {
+            console.log("Mise à jour reçue:", updatedOrder);
+
+            // On remplace l'ancienne version de la commande par la nouvelle dans la liste
+            setOrders(prev => prev.map(order =>
+                order.id === updatedOrder.id ? updatedOrder : order
+            ));
+
+            toast.info(`Commande #${updatedOrder.reference} : ${updatedOrder.status_label}`);
+        });
+
+        return () => echo.leaveChannel('orders');
+    }, [echo]);
 
     const handlePreviewCloture = async () => {
         setLoading(true);
@@ -66,7 +97,7 @@ export default function PosSalesPage() {
     const fetchOrders = async () => {
         try {
             setLoading(true);
-            const res = await api.get("/api/pos/orders/history"); // Endpoint history qu'on a créé
+            const res = await api.get("/api/pos/orders/history");
             setOrders(res.data.data);
         } catch (error) {
             console.error("Erreur historique:", error);
@@ -85,13 +116,21 @@ export default function PosSalesPage() {
         paid: { label: "Payé", color: "bg-emerald-100 text-emerald-700" },
         completed: { label: "Terminé", color: "bg-green-100 text-green-700" },
         cancelled: { label: "Annulé", color: "bg-red-100 text-red-700" },
+        ready: {
+            label: 'Pret pour livraison',
+            color: 'bg-blue-100 text-blue-700'
+        },
+        preparing: {
+            label: 'En preparation',
+            color: 'bg-slate-100 text-slate-600'
+        }
     };
 
 
 
     // 2. Filtrage dynamique (Recherche par référence ou montant)
     const filteredOrders = orders.filter(order =>
-        order.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        //  order.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.amounts.total.toString().includes(searchTerm)
     );
     const handleCloseShift = async () => {
@@ -224,18 +263,26 @@ export default function PosSalesPage() {
             toast.error("Erreur lors de la validation finale");
         }
     };
+    const handleGoHistory = () => {
+        router.push('/pos/sales/history')
+    }
     if (!isOpen) {
         return <CashOpenModal />;
     }
     return (
-        <div className="flex flex-col h-full w-full bg-muted/20">
+        <div className="flex flex-col h-full p-1 space-y-6">
             {/* Top Bar : Identique mais fonctionnelle */}
-            <div className="p-4 bg-card border-b flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
+            <div className="p-4 bg-card border-b flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                {/* Titre */}
+                <div className="flex items-center gap-2 shrink-0">
                     <History className="h-5 w-5 text-primary" />
-                    <h1 className="font-black uppercase tracking-tight italic">Historique du Shift</h1>
+                    <h1 className="font-black uppercase tracking-tight italic whitespace-nowrap">
+                        Historique du Shift
+                    </h1>
                 </div>
-                <div className="flex-1 max-w-md relative">
+
+                {/* Recherche */}
+                <div className="w-full md:flex-1 md:max-w-md relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="Rechercher une référence (ex: CMD-XXXX)..."
@@ -244,12 +291,50 @@ export default function PosSalesPage() {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
+
+                {/* Actions */}
+                <div className="self-end md:self-auto shrink-0">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-10 w-10 rounded-full border border-transparent hover:border-stone-200"
+                            >
+                                <MoreVertical size={18} /> Actions
+                            </Button>
+                        </DropdownMenuTrigger>
+
+                        <DropdownMenuContent
+                            align="end"
+                            className="w-48 rounded-xl p-2 border-stone-200 shadow-xl"
+                        >
+                            <DropdownMenuItem
+                                onClick={
+                                    handleGoHistory
+                                }
+                                className="gap-2 py-3 cursor-pointer rounded-lg">
+                                <HistoryIcon size={14} className="text-stone-500" />
+                                <span className="font-bold text-xs uppercase tracking-wider">
+                                    Historiques
+                                </span>
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem className="gap-2 py-3 cursor-pointer rounded-lg text-red-600 focus:bg-red-50 focus:text-red-600">
+                                <Lock size={14} />
+                                <span className="font-bold text-xs uppercase tracking-wider">
+                                    Fermer
+                                </span>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
             </div>
 
             <div className="flex-1 flex overflow-hidden">
                 {/* Liste des ventes (Gauche) */}
                 <div className="w-full md:w-[450px] border-r bg-card flex flex-col">
-                    <ScrollArea className="flex-1">
+                    <ScrollArea className="flex-1 min-h-0 [&>[data-radix-scroll-area-viewport]]:scroll-smooth">
                         <div className="p-4 space-y-3">
                             {loading ? (
                                 <p className="text-center p-8 font-black animate-pulse text-muted-foreground uppercase text-xs">Chargement des tickets...</p>
@@ -330,7 +415,7 @@ export default function PosSalesPage() {
 
                             <div className="flex flex-col gap-4">
 
-                                {selectedSale.status === 'pending_payment' && (
+                                {selectedSale.status === 'completed' && (
                                     <Button
                                         className="h-20 w-full flex items-center justify-center gap-3 rounded-3xl shadow-2xl shadow-emerald-500/20 bg-emerald-600 hover:bg-emerald-700 text-white transition-all active:scale-95 animate-in slide-in-from-top-2 duration-300"
                                         // On passe l'objet selectedSale complet au modal pour qu'il ait le montant et les items
@@ -384,7 +469,7 @@ export default function PosSalesPage() {
                 <div className="flex gap-12">
                     <div>
                         <p className="text-[9px] font-black uppercase opacity-40 mb-1 tracking-widest">Total du shift</p>
-                        <p className="text-3xl font-black italic">{formatCurrency(orders.reduce((acc, curr) => acc + curr.amounts.total, 0))} FCFA</p>
+                        <p className="text-3xl font-black italic">{formatCurrency(orders.reduce((acc, curr) => acc + curr.amounts.total, 0))}</p>
                     </div>
                     <div className="hidden sm:block border-l border-white/10 pl-12">
                         <p className="text-[9px] font-black uppercase opacity-40 mb-1 tracking-widest">Tickets validés</p>
@@ -453,7 +538,7 @@ export default function PosSalesPage() {
                 </div>
             )}
             {/* Le Ticket Virtuel */}
-            {showReport && lastReport && (
+            {/*      {showReport && lastReport && (
                 <CashReportTicket
                     data={lastReport}
                     onClose={() => {
@@ -465,7 +550,7 @@ export default function PosSalesPage() {
                         // handlePrintESC(lastReport);
                     }}
                 />
-            )}
+            )} */}
             {isClosing && previewData && (
                 <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
                     <Card className="max-w-md w-full rounded-[2.5rem] shadow-2xl border-none">
