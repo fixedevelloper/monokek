@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.io.FileInputStream
 
 plugins {
     id("com.android.application")
@@ -6,6 +7,7 @@ plugins {
     id("rust")
 }
 
+// 1. Charger tauri.properties (existant)
 val tauriProperties = Properties().apply {
     val propFile = file("tauri.properties")
     if (propFile.exists()) {
@@ -13,9 +15,18 @@ val tauriProperties = Properties().apply {
     }
 }
 
+// 2. Charger keystore.properties pour la signature
+val keystoreProperties = Properties().apply {
+   val keystorePropFile = file("../keystore.properties")
+    if (keystorePropFile.exists()) {
+        keystorePropFile.inputStream().use { load(it) }
+    }
+}
+
 android {
     compileSdk = 36
     namespace = "com.ballack.mono_kep_tauri"
+    
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
         applicationId = "com.ballack.mono_kep_tauri"
@@ -24,20 +35,39 @@ android {
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
+
+    // 3. Configuration de la signature
+    signingConfigs {
+        create("release") {
+            if (!keystoreProperties.isEmpty) {
+                // Gradle résout le chemin storeFile par rapport au dossier de l'application
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
             isDebuggable = true
             isJniDebuggable = true
             isMinifyEnabled = false
-            packaging {                jniLibs.keepDebugSymbols.add("*/arm64-v8a/*.so")
+            packaging {
+                jniLibs.keepDebugSymbols.add("*/arm64-v8a/*.so")
                 jniLibs.keepDebugSymbols.add("*/armeabi-v7a/*.so")
                 jniLibs.keepDebugSymbols.add("*/x86/*.so")
                 jniLibs.keepDebugSymbols.add("*/x86_64/*.so")
             }
         }
+        
         getByName("release") {
             isMinifyEnabled = true
+            // 4. Appliquer la signature de release
+            signingConfig = signingConfigs.getByName("release")
+            
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }
                     .plus(getDefaultProguardFile("proguard-android-optimize.txt"))
@@ -45,9 +75,11 @@ android {
             )
         }
     }
+
     kotlinOptions {
         jvmTarget = "1.8"
     }
+    
     buildFeatures {
         buildConfig = true
     }

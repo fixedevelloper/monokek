@@ -30,6 +30,9 @@ export function useEcho() {
                 } catch (error) {
                     console.error("[Echo] ❌ Erreur Store Tauri :", error);
                 }
+            } else {
+                // --- CAS NAVIGATEUR (Web / Next.js) ---
+             rawIp = localStorage.getItem("backend-ip") ?? window.location.hostname;
             }
 
             // 2. Nettoyage de l'hôte (enlève le port si présent : 192.168.1.50:8000 -> 192.168.1.50)

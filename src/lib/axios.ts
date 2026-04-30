@@ -52,7 +52,7 @@ api.interceptors.request.use(
         if (savedIp) {
             const cleanIp = savedIp.trim().replace(/\/+$/, "");
             // On s'assure que l'URL finit par /api si ton backend attend ce préfixe
-            const baseUrl = cleanIp.startsWith("http") ? cleanIp : `http://${cleanIp}`;
+            const baseUrl = cleanIp.startsWith("http") ? cleanIp : `https://${cleanIp}`;
             
             // Note : Si ton setup enregistre l'IP sans "/api", ajoute-le ici
             config.baseURL = baseUrl.endsWith('/api') ? `${baseUrl}/` : `${baseUrl}/`;
@@ -83,7 +83,7 @@ api.interceptors.response.use(
             useAuthStore.getState().logout();
             if (typeof window !== 'undefined') {
                 // On redirige vers login en cas de session expirée
-                window.location.href = '/login';
+               // window.location.href = '/login';
             }
         }
 

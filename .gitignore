@@ -25,6 +25,7 @@ build/
 #################################################
 src-tauri/target/
 src-tauri/.cargo/
+src-tauri/gen/
 *.msi
 *.exe
 *.deb

@@ -13,7 +13,7 @@ export const initEcho = (hostIp: string) => {
     return new Echo({
         broadcaster: 'reverb',
         key: 'oqmpqx9ghcxojmujtc4s',
-        wsHost: hostIp,
+        wsHost: isDomain? hostIp: hostIp,
         // En ligne avec SSL, on utilise souvent le port 443 via un reverse proxy
         wsPort: isLocal ? 8080 : 443, 
         forceTLS: !isLocal, // Active le WSS (SSL) si on est en ligne
