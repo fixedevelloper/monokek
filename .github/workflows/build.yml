@@ -2,14 +2,17 @@ name: RestoPro Full Build
 
 on:
   push:
-    branches: [main] # On ne fait des releases que sur main pour éviter le spam
+    branches: [main]
   workflow_dispatch:
 
-# CRITIQUE : Autoriser GitHub à écrire des fichiers (Releases)
+# CRITIQUE : Autorise la création de la Release et l'upload des fichiers
 permissions:
   contents: write
 
 jobs:
+#################################################
+# FRONTEND
+#################################################
   frontend:
     runs-on: ubuntu-latest
     steps:
@@ -21,6 +24,9 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+#################################################
+# WINDOWS (TAURI)
+#################################################
   windows:
     runs-on: windows-latest
     needs: frontend
@@ -36,12 +42,17 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Upload Windows EXE
+      
+      - name: Upload Windows MSI
         uses: actions/upload-artifact@v4
         with:
           name: windows-artifact
-          path: src-tauri/target/release/bundle/msi/*.msi # Plus propre que **
+          # Chemin standard de sortie pour Tauri Windows
+          path: src-tauri/target/release/bundle/msi/*.msi
 
+#################################################
+# ANDROID (TAURI)
+#################################################
   android-tauri:
     runs-on: ubuntu-latest
     needs: frontend
@@ -57,15 +68,23 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: android-actions/setup-android@v3
+
       - run: npm ci
       - run: npm run build
-      - run: npx tauri android build
+
+      # On force le build de l'APK (installable) au lieu de l'AAB (Play Store)
+      - run: npx tauri android build --apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: android-artifact
+          # Chemin correct pour Tauri v2 Android
           path: src-tauri/gen/android/app/build/outputs/apk/release/*.apk
 
+#################################################
+# RELEASE (PUBLICATION)
+#################################################
   release:
     runs-on: ubuntu-latest
     needs: [windows, android-tauri]
@@ -74,22 +93,24 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: release-assets
-          merge-multiple: true # Pour tout mettre dans le même dossier
+          merge-multiple: true # Très important : met le MSI et l'APK dans le même dossier
 
       - name: Generate Tag Name
         id: tag
-        run: echo "tag_name=v1.0.${{ github.run_number }}" >> $GITHUB_OUTPUT
+        run: echo "tag_name=v0.1.${{ github.run_number }}" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release-assets/*
           tag_name: ${{ steps.tag.outputs.tag_name }}
           name: MonoKek Release ${{ steps.tag.outputs.tag_name }}
+          files: |
+            release-assets/*.msi
+            release-assets/*.apk
           body: |
-            Build automatique de MonoKek.
-            - Version Windows (MSI/EXE)
-            - Version Android (APK)
+            Nouvelle version de MonoKek.
+            - Windows : Télécharger le fichier .msi
+            - Android : Télécharger le fichier .apk
           draft: false
           prerelease: false
         env:
