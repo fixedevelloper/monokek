@@ -5,7 +5,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# CRITIQUE : Autorise la création de la Release et l'upload des fichiers
+# Autorise la création de la Release et l'upload des fichiers
 permissions:
   contents: write
 
@@ -51,49 +51,17 @@ jobs:
           path: src-tauri/target/release/bundle/msi/*.msi
 
 #################################################
-# ANDROID (TAURI)
-#################################################
-  android-tauri:
-    runs-on: ubuntu-latest
-    needs: frontend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-      - uses: android-actions/setup-android@v3
-
-      - run: npm ci
-      - run: npm run build
-
-      # On force le build de l'APK (installable) au lieu de l'AAB (Play Store)
-      - run: npx tauri android build --apk
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-artifact
-          # Chemin correct pour Tauri v2 Android
-          path: src-tauri/gen/android/app/build/outputs/apk/release/*.apk
-
-#################################################
 # RELEASE (PUBLICATION)
 #################################################
   release:
     runs-on: ubuntu-latest
-    needs: [windows, android-tauri]
+    needs: [windows] # Supprimé android-tauri ici
     steps:
-      - name: Download all artifacts
+      - name: Download Windows Artifact
         uses: actions/download-artifact@v4
         with:
+          name: windows-artifact
           path: release-assets
-          merge-multiple: true # Très important : met le MSI et l'APK dans le même dossier
 
       - name: Generate Tag Name
         id: tag
@@ -106,11 +74,9 @@ jobs:
           name: MonoKek Release ${{ steps.tag.outputs.tag_name }}
           files: |
             release-assets/*.msi
-            release-assets/*.apk
           body: |
-            Nouvelle version de MonoKek.
-            - Windows : Télécharger le fichier .msi
-            - Android : Télécharger le fichier .apk
+            Nouvelle version de MonoKek (Windows).
+            - Téléchargez le fichier .msi pour installer l'application.
           draft: false
           prerelease: false
         env:
