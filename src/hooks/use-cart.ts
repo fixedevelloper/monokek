@@ -53,7 +53,8 @@ export const useCart = () => {
         modifiers: selectedModifiers.map(m => ({
           id: m.id,
           name: m.name,
-          price: parseFloat(m.price || 0)
+          price: parseFloat(m.price || 0),
+          quantity: m.quantity
         })),
         id: ""
       };

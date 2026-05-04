@@ -23,7 +23,7 @@ export default function RootLayout({
   const pathname = usePathname();
   const [isReady, setIsReady] = useState(false);
 
-useEffect(() => {
+  useEffect(() => {
     const checkConfig = async () => {
       const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -31,11 +31,11 @@ useEffect(() => {
         try {
           // Utilisation de load() selon la doc V2
           const { load } = await import("@tauri-apps/plugin-store");
-         const store = await load(".settings.json", {
-  autoSave: true,
-  defaults: {}
-});
-          
+          const store = await load(".settings.json", {
+            autoSave: true,
+            defaults: {}
+          });
+
           const savedIp = await store.get<string>("backend-ip");
 
           if (!savedIp && pathname !== '/setup') {
@@ -61,7 +61,7 @@ useEffect(() => {
         <QueryProvider>
           <ThemeProvider attribute="class" defaultTheme="light">
             <TooltipProvider>
-              
+
               {/* On n'affiche le contenu que lorsque la vérification IP est faite */}
               {isReady ? (
                 <div className="flex h-screen w-screen overflow-hidden">

@@ -40,7 +40,7 @@ const handleSave = async () => {
     setStatus('idle');
 
     let cleanIp = ip.trim().replace(/\/+$/, "");
-    if (!cleanIp.startsWith('http')) {
+    if (!cleanIp.startsWith('https')) {
         cleanIp = `http://${cleanIp}`;
     }
 

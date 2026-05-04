@@ -1,16 +1,4 @@
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Trash2 } from "lucide-react";
-
-interface ConfirmDeleteModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onConfirm: () => void;
-  loading?: boolean;
-  title?: string;
-  description?: string;
-}
-
+import {Loader2, Trash} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +9,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Trash } from "lucide-react";
+
+interface ConfirmDeleteModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+  loading?: boolean;
+  title?: string;
+  description?: string;
+}
 
 export function ConfirmDeleteModal({ open, onOpenChange, onConfirm, loading, title, description }: any) {
   return (

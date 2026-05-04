@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 export default function QueryProvider({ children }: { children: React.ReactNode }) {
-  // Initialisation du QueryClient avec des réglages optimisés pour un POS
+
   const [queryClient] = useState(
     () =>
       new QueryClient({

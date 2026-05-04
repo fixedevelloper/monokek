@@ -52,7 +52,7 @@ api.interceptors.request.use(
         if (savedIp) {
             const cleanIp = savedIp.trim().replace(/\/+$/, "");
             // On s'assure que l'URL finit par /api si ton backend attend ce préfixe
-            const baseUrl = cleanIp.startsWith("http") ? cleanIp : `https://${cleanIp}`;
+            const baseUrl = cleanIp.startsWith("https") ?`https://${cleanIp}`  : `http://${cleanIp}`
             
             // Note : Si ton setup enregistre l'IP sans "/api", ajoute-le ici
             config.baseURL = baseUrl.endsWith('/api') ? `${baseUrl}/` : `${baseUrl}/`;

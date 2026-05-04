@@ -123,6 +123,10 @@ export default function PosSalesPage() {
         preparing: {
             label: 'En preparation',
             color: 'bg-slate-100 text-slate-600'
+        },
+        reserved:{
+            label: 'Reservation',
+            color: 'bg-gray-100 text-slate-600'
         }
     };
 
@@ -293,7 +297,7 @@ export default function PosSalesPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="self-end md:self-auto shrink-0">
+               {/*  <div className="self-end md:self-auto shrink-0">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button
@@ -328,7 +332,7 @@ export default function PosSalesPage() {
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                </div>
+                </div> */}
             </div>
 
             <div className="flex-1 flex overflow-hidden">
@@ -415,7 +419,7 @@ export default function PosSalesPage() {
 
                             <div className="flex flex-col gap-4">
 
-                                {selectedSale.status === 'completed' && (
+                                { (selectedSale.status === 'completed' || selectedSale.status === 'pending_payment') && (
                                     <Button
                                         className="h-20 w-full flex items-center justify-center gap-3 rounded-3xl shadow-2xl shadow-emerald-500/20 bg-emerald-600 hover:bg-emerald-700 text-white transition-all active:scale-95 animate-in slide-in-from-top-2 duration-300"
                                         // On passe l'objet selectedSale complet au modal pour qu'il ait le montant et les items

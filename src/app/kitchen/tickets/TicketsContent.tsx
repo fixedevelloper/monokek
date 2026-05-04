@@ -178,7 +178,7 @@ export default function KitchenTicketsContent() {
                       <p className="font-black text-sm uppercase leading-tight">{item.name}</p>
                       {item.modifiers?.map((mod: any, midx: any) => (
                         <span key={midx} className="text-[10px] font-bold text-orange-600 block">
-                          + {mod.name}
+                          +{mod.quantity}x{mod.name}
                         </span>
                       ))}
                     </div>

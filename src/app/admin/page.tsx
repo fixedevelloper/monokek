@@ -14,7 +14,7 @@ import {
   ShieldCheck,
   Package,
   LogOut,
-  UserCog
+  UserCog, CalendarCheck, TrendingUp
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -61,6 +61,20 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: Users,
     href: "/admin/staff",
     color: "bg-purple-600",
+  },
+  {
+    title: "Réservations",
+    description: "Planning & Commandes privées",
+    icon: CalendarCheck, // Plus spécifique qu'une simple icône 'Users'
+    href: "/admin/reservations",
+    color: "bg-indigo-600", // Un bleu-indigo puissant pour la confiance et la gestion
+  },
+  {
+    title: "Performance",
+    description: "Analytique et commissions sur ventes",
+    icon: TrendingUp,
+    href: "/admin/commissions",
+    color: "bg-emerald-500", // Vert pour la croissance et le profit
   },
   {
     title: "Historique",

@@ -1,24 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { 
-  ArrowLeft, Search, Calendar, Download, 
-  Eye, Printer, Loader2, FilterX 
-} from "lucide-react";
-import { format } from "date-fns";
-import { toast } from "sonner";
+import React, {useState} from "react";
+import {ArrowLeft, Download, Eye, FilterX, Loader2, Search} from "lucide-react";
+import {format, subDays} from "date-fns";
+import {toast} from "sonner";
 import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
+import {Button} from "@/components/ui/button";
+import {Input} from "@/components/ui/input";
+import {Badge} from "@/components/ui/badge";
+import {Card} from "@/components/ui/card";
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow,} from "@/components/ui/table";
 import api from "@/src/lib/axios";
-import { Order } from "@/src/types/menus";
-import { OrderDetailsModal } from "./OrderDetailsModal";
+import {Order} from "@/src/types/menus";
+import {OrderDetailsModal} from "./OrderDetailsModal";
+
+import {useQuery} from "@tanstack/react-query";
+import {DateRangePicker} from "../../../../components/ui/date-range-picker";
+import {DateRange} from "react-day-picker";
 
 // Interface basée sur ton OrderResource
 interface OrderHistoryItem {
@@ -35,49 +34,42 @@ interface OrderHistoryItem {
 }
 
 export default function AdminHistoryPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  // Par défaut, on peut filtrer sur la date du jour
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
-// 2. Fonction pour ouvrir
-const handleViewDetails = async (order: Order) => {
-  try {
-  
-    setSelectedOrder(order);
-    setIsModalOpen(true);
-  } catch (error) {
-    toast.error("Impossible de charger les détails");
-  }
-};
-  const fetchHistory = async () => {
-    try {
-      setLoading(true);
-      // On passe la recherche et la date en paramètres SQL via l'API
+  const [appliedRange, setAppliedRange] = useState<DateRange>({
+    from: subDays(new Date(), 30),
+    to: new Date(),
+  });
+  // 2. Utilisation de useQuery
+  const { data: orders = [], isLoading, isFetching } = useQuery({
+    queryKey: ['orders-history', searchQuery,appliedRange.from, appliedRange.to],
+    queryFn: async () => {
       const res = await api.get('/api/admin/orders/history', {
-        params: { 
+        params: {
           search: searchQuery,
-          date: selectedDate 
+          start_date: appliedRange.from
+              ? format(appliedRange.from, 'yyyy-MM-dd')
+              : undefined,
+          end_date: appliedRange.to
+              ? format(appliedRange.to, 'yyyy-MM-dd')
+              : appliedRange.from
+                  ? format(appliedRange.from, 'yyyy-MM-dd')
+                  : undefined,
         }
       });
-      setOrders(res.data.data);
-    } catch (error) {
-      toast.error("Erreur de chargement de l'historique");
-    } finally {
-      setLoading(false);
-    }
-  };
+      return res.data.data;
+    },
+   // keepPreviousData: true
+  });
 
-  // Déclenche la recherche quand on tape ou change la date
-  useEffect(() => {
-    const delayDebounce = setTimeout(() => {
-      fetchHistory();
-    }, 300); // Debounce pour éviter trop d'appels API
-    return () => clearTimeout(delayDebounce);
-  }, [searchQuery, selectedDate]);
+  const handleDateChange = (newRange?: DateRange) => {
+    if (!newRange) return;
+
+    setAppliedRange(newRange);
+  };
+  // 3. Fonction d'impression Ticket PDF (Format 80mm)
 
   const getStatusBadge = (status: string) => {
     const s = status.toLowerCase();
@@ -93,7 +85,15 @@ const handleViewDetails = async (order: Order) => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-CM', { style: 'currency', currency: 'XAF' }).format(amount).replace('FCFA', '').trim() + ' FCFA';
   };
+  const handleViewDetails = async (order: Order) => {
+    try {
 
+      setSelectedOrder(order);
+      setIsModalOpen(true);
+    } catch (error) {
+      toast.error("Impossible de charger les détails");
+    }
+  };
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <header className="max-w-7xl mx-auto mb-8">
@@ -113,23 +113,19 @@ const handleViewDetails = async (order: Order) => {
           <div className="flex items-center gap-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="N° Commande, Table..." 
-                className="pl-10 h-12 w-64 rounded-2xl bg-white border-none shadow-sm focus-visible:ring-primary"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+              <Input
+                  placeholder="N° Commande..."
+                  className="pl-10 h-11 w-64 rounded-xl bg-slate-50 border-none"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            {/* Input Date Natif stylisé */}
-            <div className="relative h-12 bg-white rounded-2xl shadow-sm px-4 flex items-center gap-2">
-                <Calendar size={16} className="text-primary" />
-                <input 
-                    type="date" 
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="bg-transparent border-none text-[10px] font-black uppercase outline-none"
-                />
-            </div>
+
+            {/* Range Date Picker (Utilise ton composant Popover + Calendar précédent) */}
+            <DateRangePicker
+                initialRange={appliedRange}
+                onApply={handleDateChange}
+            />
           </div>
           
           <Button variant="outline" className="h-12 rounded-2xl border-none bg-white shadow-sm gap-2 font-bold uppercase text-[10px] hover:bg-primary hover:text-white transition-all">
@@ -147,13 +143,14 @@ const handleViewDetails = async (order: Order) => {
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Heure</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Table</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Serveur</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Caissier</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-right">Total</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Statut</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-right pr-8">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
+              {isLoading ? (
                 <TableRow>
                     <TableCell colSpan={7} className="h-64 text-center">
                         <div className="flex flex-col items-center gap-2 opacity-50">
@@ -162,7 +159,7 @@ const handleViewDetails = async (order: Order) => {
                         </div>
                     </TableCell>
                 </TableRow>
-              ) : orders.length === 0 ? (
+              ) : orders?.length === 0 ? (
                 <TableRow>
                     <TableCell colSpan={7} className="h-64 text-center">
                         <div className="flex flex-col items-center gap-2 opacity-20 italic">
@@ -172,7 +169,7 @@ const handleViewDetails = async (order: Order) => {
                     </TableCell>
                 </TableRow>
               ) : (
-                orders.map((order) => (
+                orders?.map((order:Order) => (
                     <TableRow key={order.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors border-slate-100 dark:border-slate-800">
                       <TableCell className="font-bold pl-8 py-5 tracking-tighter">{order.reference}</TableCell>
                       <TableCell className="text-muted-foreground text-sm font-medium">
@@ -182,6 +179,7 @@ const handleViewDetails = async (order: Order) => {
                         <Badge variant="outline" className="rounded-lg font-bold border-2">{order.table?.name}</Badge>
                       </TableCell>
                       <TableCell className="font-medium text-sm">{order.waiter?.name}</TableCell>
+                      <TableCell className="font-medium text-sm">{order.cashier?.name}</TableCell>
                       <TableCell className="text-right font-black text-lg tracking-tighter">
                         {formatCurrency(order.amounts.total)}
                       </TableCell>
@@ -192,9 +190,6 @@ const handleViewDetails = async (order: Order) => {
                           onClick={() => handleViewDetails(order)}
                            size="icon" variant="ghost" className="h-9 w-9 rounded-xl hover:bg-primary/10 hover:text-primary">
                             <Eye size={16} />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">
-                            <Printer size={16} />
                           </Button>
                         </div>
                       </TableCell>

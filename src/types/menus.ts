@@ -1,48 +1,65 @@
 export interface ModifierItem {
-  id: number;
-  name: string;
-  price: number;
+    id: number;
+    name: string;
+    price: number;
+    quantity: number;
 }
 
 export interface Modifier {
-  id: number;
-  name: string; // ex: "Cuisson", "Suppléments"
-  items: ModifierItem[];
+    id: number;
+    name: string; // ex: "Cuisson", "Suppléments"
+    items: ModifierItem[];
 }
+
 export interface Product {
-  id: number;
-  name: string;
-  sku: string;
-  description: string;
-  price: number;
-  formatted_price: string;
-  category: Category;
-modifiers: Modifier[];
-  is_active: boolean;
-  track_stock: boolean;
-  stock_count: number;
-  created_at: string;
+    id: number;
+    name: string;
+    sku: string;
+    description: string;
+    price: number;
+    incentive_amount:number;
+    formatted_price: string;
+    category: Category;
+    modifiers: Modifier[];
+    is_active: boolean;
+    track_stock: boolean;
+    stock_count: number;
+    alert_stock: number;
+    type: string;
+    image_url: string;
+    created_at: string;
 }
 
 export interface Category {
-  id: number | null;
-  name: string;
-  branch_id: number;
-  slug: string;
-  description?: string;
-  icon?: string;
-  is_active: boolean;
-  created_at: string;
+    id: number | null;
+    name: string;
+    branch_id: number;
+    slug: string;
+    description?: string;
+    icon?: string;
+    is_active: boolean;
+    created_at: string;
 }
 
 
-export type OrderStatus = 'draft' | 'pending' | 'pending_payment' | 'paid' | 'completed' | 'cancelled' | 'billing'| 'ready'| 'preparing';
+export type OrderStatus =
+    'draft'
+    | 'pending'
+    | 'pending_payment'
+    | 'paid'
+    | 'completed'
+    | 'cancelled'
+    | 'billing'
+    | 'ready'
+    | 'reserved'
+    | 'preparing';
 export type OrderType = 'dinein' | 'takeaway' | 'delivery';
 
 export interface OrderItemModifier {
     id: number;
     name: string;
     price: number;
+    quantity: number;
 }
 
 export interface OrderItem {
@@ -69,10 +86,10 @@ export interface Order {
     table_id: number | null;
     user_id: number;
     customer_id?: number | null;
-    
+
     type: OrderType;
     status: OrderStatus;
-    
+
     // Montants
     amounts: {
         subtotal: number;
@@ -81,7 +98,7 @@ export interface Order {
         total: number;
         formatted_total: string;
     };
-    
+
     // Relations
     items?: OrderItem[];
     table?: {
@@ -93,7 +110,10 @@ export interface Order {
         id: number;
         name: string;
     };
-    
+    cashier?: {
+        id: number;
+        name: string;
+    };
     note?: string | null;
     created_at: string; // Format "H:i"
     date: string;       // Format "d/m/Y"

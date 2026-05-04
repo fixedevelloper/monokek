@@ -1,18 +1,16 @@
 "use client";
 
-import { 
-  X, Printer, Download, Utensils, 
-  User, Calendar, Hash, CreditCard 
-} from "lucide-react";
-import { 
-  Dialog, DialogContent, DialogHeader, 
-  DialogTitle 
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Order } from "@/src/types/menus";
+import {Calendar, Download, Hash, Printer, User, User2, X} from "lucide-react";
+import {Dialog, DialogContent} from "@/components/ui/dialog";
+import {Button} from "@/components/ui/button";
+import {Badge} from "@/components/ui/badge";
+import {ScrollArea} from "@/components/ui/scroll-area";
+import {Separator} from "@/components/ui/separator";
+import {Order} from "@/src/types/menus";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import {format} from "date-fns";
+import {LOGO_BASE64} from "../../../constants/logo";
 
 interface OrderDetailsModalProps {
   order: Order | null;
@@ -26,6 +24,89 @@ export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalP
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-CM', { style: 'currency', currency: 'XAF' })
       .format(amount).replace('FCFA', '').trim() + ' FCFA';
+  };
+  const printTicket = (order: Order) => {
+    const doc = new jsPDF({ unit: "mm", format: [80, 200] });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // --- LOGO ---
+    const logoWidth = 20;
+    const logoX = (pageWidth - logoWidth) / 2;
+    doc.addImage(LOGO_BASE64, 'PNG', logoX, 5, logoWidth, 20);
+
+    // --- HEADER ---
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("MON RESTO", pageWidth / 2, 28, { align: "center" });
+
+    doc.setFontSize(8);
+    doc.text("Tél: +237 6xx xx xx xx", pageWidth / 2, 32, { align: "center" });
+    doc.text("Douala, Cameroun", pageWidth / 2, 36, { align: "center" });
+
+    // --- INFOS ---
+    let y = 42;
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+
+    doc.text(`Ref: ${order.reference}`, 5, y); y += 4;
+    doc.text(`Date: ${order.date}`, 5, y); y += 4;
+    doc.text(`Table: ${order.table?.name}`, 5, y); y += 4;
+    doc.text(`Serveur: ${order.waiter?.name}`, 5, y); y += 4;
+
+    // Ligne
+    doc.line(2, y, pageWidth - 2, y);
+    y += 3;
+
+    // --- TABLE ---
+    autoTable(doc, {
+      startY: y,
+      margin: { left: 2, right: 2 },
+      head: [['Qté', 'Désignation', 'Total']],
+      body: order?.items?.map(i => [
+        i.qty,
+        i.product.name,
+        i.price * i.qty
+      ]),
+      styles: { fontSize: 7, cellPadding: 1 },
+      columnStyles: {
+        0: { cellWidth: 8 },
+        2: {fontSize: 5 }
+      }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 5;
+
+    // --- TOTAL ---
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(
+        `TOTAL: ${(order.amounts.total)} FCFA`,
+        pageWidth - 2,
+        finalY,
+        { align: "right" }
+    );
+
+    // --- CAISSIER ---
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.text(`Encaissé par: ${order.cashier?.name || 'Admin'}`, 5, finalY + 6);
+
+    // --- FOOTER ---
+    doc.line(2, finalY + 10, pageWidth - 2, finalY + 10);
+
+    doc.setFont("helvetica", "italic");
+    doc.text("Merci de votre visite !", pageWidth / 2, finalY + 14, { align: "center" });
+    doc.text(
+        format(new Date(), "'Imprimé le' dd/MM 'à' HH:mm"),
+        pageWidth / 2,
+        finalY + 18,
+        { align: "center" }
+    );
+
+    // --- PRINT ---
+    doc.autoPrint();
+    window.open(doc.output('bloburl'), '_blank');
   };
 
   return (
@@ -65,7 +146,7 @@ export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalP
             
             <div className="text-right bg-white/5 p-4 rounded-3xl border border-white/10 px-8">
               <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] leading-none mb-1">Table</p>
-              <p className="text-4xl font-black text-primary italic tracking-tighter">
+              <p className="text-4xl font-black text-white italic tracking-tighter">
                 {order.table?.name || "LIVRAISON"}
               </p>
             </div>
@@ -124,6 +205,13 @@ export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalP
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center"><User2 size={18}/></div>
+                    <div>
+                      <p className="text-[8px] font-black uppercase opacity-50">Caissiere</p>
+                      <p className="text-sm font-bold">{order.cashier?.name}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
                     <div className="h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center"><Calendar size={18}/></div>
                     <div>
                       <p className="text-[8px] font-black uppercase opacity-50">Étage</p>
@@ -150,10 +238,14 @@ export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalP
               </div>
 
               <div className="grid grid-cols-1 gap-3 pt-4">
-                <Button className="h-16 rounded-2xl bg-slate-900 text-white font-black uppercase text-[11px] tracking-widest gap-3 shadow-xl shadow-slate-900/10">
+                <Button
+                    onClick={() => printTicket(order)}
+                    className="h-16 rounded-2xl bg-slate-900 text-white font-black uppercase text-[11px] tracking-widest gap-3 shadow-xl shadow-slate-900/10">
                   <Printer size={20} /> Imprimer Reçu
                 </Button>
-                <Button variant="outline" className="h-14 rounded-2xl border-2 font-black uppercase text-[10px] tracking-widest gap-2">
+                <Button
+                    onClick={() => printTicket(order)}
+                    variant="outline" className="h-14 rounded-2xl border-2 font-black uppercase text-[10px] tracking-widest gap-2">
                   <Download size={18} /> Télécharger PDF
                 </Button>
               </div>
