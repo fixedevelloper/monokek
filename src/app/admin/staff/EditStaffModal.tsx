@@ -1,20 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { 
-    Dialog, DialogContent, DialogHeader, DialogTitle, 
-    DialogFooter 
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { 
-    Select, SelectContent, SelectItem, 
-    SelectTrigger, SelectValue 
-} from "@/components/ui/select";
-import { Edit3, Mail, Shield, Phone, Loader2, UserCircle2 } from "lucide-react";
-import { toast } from "sonner";
-import { StaffMember } from "@/src/types/management";
+import {useEffect, useState} from "react";
+import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@/components/ui/dialog";
+import {Label} from "@/components/ui/label";
+import {Input} from "@/components/ui/input";
+import {Button} from "@/components/ui/button";
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
+import {Edit3, Loader2, Mail, Phone, UserCircle2} from "lucide-react";
+import {toast} from "sonner";
+import {StaffMember} from "@/src/types/management";
 import api from "@/src/lib/axios";
 
 interface EditStaffModalProps {

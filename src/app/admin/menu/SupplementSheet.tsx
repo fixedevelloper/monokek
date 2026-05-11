@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query"; // Import indispensable
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Layers, Save, Loader2, PackageSearch, AlertTriangle } from "lucide-react";
-import { toast } from "sonner";
+import React, {useEffect, useState} from "react";
+import {useQueryClient} from "@tanstack/react-query"; // Import indispensable
+import {Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle} from "@/components/ui/sheet";
+import {Button} from "@/components/ui/button";
+import {ScrollArea} from "@/components/ui/scroll-area";
+import {Layers, Loader2, Save} from "lucide-react";
+import {toast} from "sonner";
 import api from "../../../lib/axios";
 import {ModifierGroupCard} from "./ModifierGroupCard";
 

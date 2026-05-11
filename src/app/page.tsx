@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { Loader2, Store } from "lucide-react";
-import { useAuth } from "../hooks/use-auth";
-import { ROLES } from "../constants/roles";
+import {useEffect} from "react";
+import {useRouter} from "next/navigation";
+import {Loader2, Store} from "lucide-react";
+import {useAuth} from "../hooks/use-auth";
+import {ROLES} from "../constants/roles";
 
 export default function RootPage() {
   const router = useRouter();

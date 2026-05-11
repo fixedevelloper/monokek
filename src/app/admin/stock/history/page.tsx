@@ -1,14 +1,14 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { Search, Calendar, Filter, FileText, ArrowLeft, Loader2, RefreshCcw, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { useStockStore } from "@/src/store/use-stock-store";
-import { useRouter } from "next/navigation";
-import { StockMovement } from '@/src/types/stock';
-import { Card, CardContent } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
+import React, {useEffect, useState} from 'react';
+import {ArrowDownLeft, ArrowLeft, ArrowUpRight, FileText, Loader2, RefreshCcw, Search} from 'lucide-react';
+import {Input} from "@/components/ui/input";
+import {Button} from "@/components/ui/button";
+import {useStockStore} from "@/src/store/use-stock-store";
+import {useRouter} from "next/navigation";
+import {StockMovement} from '@/src/types/stock';
+import {Card, CardContent} from '@/components/ui/card';
+import {cn} from '@/lib/utils';
 
 export default function StockHistoryPage() {
   const router = useRouter();

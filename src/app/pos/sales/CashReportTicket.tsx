@@ -1,6 +1,6 @@
 import React from 'react';
-import { Printer, X, AlertTriangle, TrendingDown, TrendingUp } from 'lucide-react';
-import { Button } from "@/components/ui/button";
+import {Printer, TrendingDown, TrendingUp, X} from 'lucide-react';
+import {Button} from "@/components/ui/button";
 
 interface ReportData {
     opening_amount: number;

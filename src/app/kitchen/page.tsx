@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {useEffect, useState} from "react";
 import Link from "next/link";
-import { LayoutGrid, Flame, Beer, Coffee, Utensils, Loader2, LogOut } from "lucide-react";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import {Beer, Coffee, Flame, LayoutGrid, Loader2, LogOut, Utensils} from "lucide-react";
+import {Card} from "@/components/ui/card";
+import {Badge} from "@/components/ui/badge";
 import api from "@/src/lib/axios";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-import { useEcho } from "@/src/hooks/useEcho";
+import {cn} from "@/lib/utils";
+import {Button} from "@/components/ui/button";
+import {toast} from "sonner";
+import {useRouter} from "next/navigation";
+import {useEcho} from "@/src/hooks/useEcho";
 
 interface KitchenStation {
     id: number;

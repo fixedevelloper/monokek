@@ -1,29 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { 
-  Plus, Search, UserCircle2, Mail, 
-  ShieldCheck, MoreVertical, Edit2, Trash2,
-  ArrowLeft, Phone
-} from "lucide-react";
+import {useEffect, useState} from "react";
+import {ArrowLeft, Edit2, Mail, MoreVertical, Phone, Search, ShieldCheck, Trash2, UserCircle2} from "lucide-react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import {AnimatePresence, motion} from "framer-motion";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import { 
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, 
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu";
-import { toast } from "sonner";
-import { AddStaffModal } from "./AddStaffModal";
+import {Button} from "@/components/ui/button";
+import {Input} from "@/components/ui/input";
+import {Badge} from "@/components/ui/badge";
+import {Card} from "@/components/ui/card";
+import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from "@/components/ui/dropdown-menu";
+import {toast} from "sonner";
+import {AddStaffModal} from "./AddStaffModal";
 import api from "@/src/lib/axios";
-import { ROLE_CONFIG, StaffMember } from "@/src/types/management";
-import { EditStaffModal } from "./EditStaffModal";
-import { PermissionsModal } from "./PermissionsModal";
-
+import {ROLE_CONFIG, StaffMember} from "@/src/types/management";
+import {EditStaffModal} from "./EditStaffModal";
+import {PermissionsModal} from "./PermissionsModal";
 
 
 export default function AdminStaffPage() {

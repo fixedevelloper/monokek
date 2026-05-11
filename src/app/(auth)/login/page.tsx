@@ -1,17 +1,17 @@
 "use client";
 
-import React, { useState } from 'react';
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import React, {useState} from 'react';
+import {useForm} from "react-hook-form";
+import {zodResolver} from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Store, Loader2, Lock, User, Eye, EyeOff, Settings, Settings2 } from "lucide-react";
+import {Eye, EyeOff, Loader2, Lock, Settings, Store, User} from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useAuth } from '@/src/hooks/use-auth';
-import { useRouter } from 'next/navigation';
+import {Button} from "@/components/ui/button";
+import {Input} from "@/components/ui/input";
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card";
+import {Form, FormControl, FormField, FormItem, FormLabel, FormMessage} from "@/components/ui/form";
+import {useAuth} from '@/src/hooks/use-auth';
+import {useRouter} from 'next/navigation';
 
 
 // Schéma de validation Zod

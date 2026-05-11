@@ -1,20 +1,37 @@
 'use client'
 
-import React, { useEffect, useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Utensils, Users, Clock, Plus, MoreHorizontal, RefreshCcw, ArrowLeft, Trash2, Pencil, ExternalLink, Layers } from "lucide-react";
-import { Floor, Table } from '@/src/types/tables'; // Assure-toi que Table est exporté
+import React, {useEffect, useState} from 'react';
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
+import {Card, CardContent} from "@/components/ui/card";
+import {Badge} from "@/components/ui/badge";
+import {Button} from "@/components/ui/button";
+import {Separator} from "@/components/ui/separator";
+import {Skeleton} from "@/components/ui/skeleton";
+import {
+    ArrowLeft,
+    Clock,
+    Layers,
+    MoreHorizontal,
+    Pencil,
+    Plus,
+    RefreshCcw,
+    Trash2,
+    Users,
+    Utensils
+} from "lucide-react";
+import {Floor, Table} from '@/src/types/tables'; // Assure-toi que Table est exporté
 import api from '@/src/lib/axios';
-import { toast } from 'sonner';
-import { AddTableModal } from '../../pos/tables/AddTableModal';
-import { useRouter } from 'next/navigation';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { EditTableModal } from '../../pos/tables/EditTableModal';
+import {toast} from 'sonner';
+import {AddTableModal} from '../../pos/tables/AddTableModal';
+import {useRouter} from 'next/navigation';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import {EditTableModal} from '../../pos/tables/EditTableModal';
 
 const statusMap = {
     free: { label: "Disponible", class: "bg-emerald-500/10 text-emerald-600 border-emerald-200", dot: "bg-emerald-500" },

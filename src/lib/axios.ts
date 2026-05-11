@@ -1,5 +1,5 @@
-import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
-import { useAuthStore } from '../store/use-auth-store';
+import axios, {AxiosInstance, InternalAxiosRequestConfig} from 'axios';
+import {useAuthStore} from '../store/use-auth-store';
 
 /**
  * 1. Détection robuste de l'environnement Tauri
@@ -26,19 +26,19 @@ const api: AxiosInstance = axios.create({
  */
 api.interceptors.request.use(
     async (config: InternalAxiosRequestConfig) => {
-       let savedIp: string | null | undefined = null;
+        let savedIp: string | null | undefined = null;
 
         if (typeof window !== "undefined") {
             if (isTauri) {
                 // --- CAS TAURI (Desktop) ---
                 try {
-                    const { load } = await import("@tauri-apps/plugin-store");
+                    const {load} = await import("@tauri-apps/plugin-store");
                     const store = await load(".settings.json", {
                         autoSave: true,
                         defaults: {}
                     });
-                    
-                    savedIp = await store.get<string| null>("backend-ip");
+
+                    savedIp = await store.get<string | null>("backend-ip");
                 } catch (e) {
                     console.warn("Échec récupération IP via Store V2", e);
                 }
@@ -52,8 +52,8 @@ api.interceptors.request.use(
         if (savedIp) {
             const cleanIp = savedIp.trim().replace(/\/+$/, "");
             // On s'assure que l'URL finit par /api si ton backend attend ce préfixe
-            const baseUrl = cleanIp.startsWith("https") ?`https://${cleanIp}`  : `http://${cleanIp}`
-            
+            const baseUrl = cleanIp.startsWith("https") ? `${cleanIp}` : `http://${cleanIp}`
+
             // Note : Si ton setup enregistre l'IP sans "/api", ajoute-le ici
             config.baseURL = baseUrl.endsWith('/api') ? `${baseUrl}/` : `${baseUrl}/`;
         }
@@ -83,7 +83,7 @@ api.interceptors.response.use(
             useAuthStore.getState().logout();
             if (typeof window !== 'undefined') {
                 // On redirige vers login en cas de session expirée
-               // window.location.href = '/login';
+                // window.location.href = '/login';
             }
         }
 

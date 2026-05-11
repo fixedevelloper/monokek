@@ -12,6 +12,9 @@
     "store:allow-set",
     "store:allow-save",
     "store:default",
-    "notification:default"
+    "notification:default",
+    "thermal-printer:allow-list-thermal-printers",
+    "thermal-printer:allow-print-thermal-printer",
+    "thermal-printer:allow-test-thermal-printer"
   ]
 }

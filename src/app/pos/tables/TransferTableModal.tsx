@@ -1,17 +1,11 @@
 "use client";
 
-import React, { useState } from 'react';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogFooter 
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { MoveRight, Table as TableIcon, Check } from "lucide-react";
-import { cn } from "@/lib/utils";
+import React, {useState} from 'react';
+import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@/components/ui/dialog";
+import {Button} from "@/components/ui/button";
+import {ScrollArea} from "@/components/ui/scroll-area";
+import {Check, MoveRight, Table as TableIcon} from "lucide-react";
+import {cn} from "@/lib/utils";
 
 interface Table {
   id: number;

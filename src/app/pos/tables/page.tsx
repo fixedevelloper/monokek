@@ -2,20 +2,7 @@
 
 import React, {useEffect, useMemo, useState} from 'react';
 import {motion} from 'framer-motion';
-import {
-    Users,
-    Clock,
-    ChevronRight,
-    Plus,
-    Search,
-    LayoutDashboard,
-    Timer,
-    LogOut,
-    LockIcon,
-    Monitor,
-    LayoutGrid,
-    TableIcon, History
-} from 'lucide-react';
+import {ChevronRight, History, LayoutGrid, LogOut, TableIcon, Users} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {Badge} from '@/components/ui/badge';
 import {cn} from '@/lib/utils';
@@ -42,7 +29,7 @@ export default function TablesPage() {
         {label: 'Tables', icon: TableIcon, href: '/pos/tables'},
         {label: 'Commandes', icon: History, href: '/pos/orders'},
     ];
-    const logout = useAuthStore((state) => state.logout); // On suppose que tu as une action logout
+    const logout = useAuthStore((state) => state.logout);
 
     const handleLogout = () => {
         logout();
@@ -55,7 +42,6 @@ export default function TablesPage() {
             const res = await api.get('/api/pos/floors');
             return res.data.data;
         },
-        // Optionnel : On peut ajouter un toast d'erreur global ici ou via un QueryCache central
     });
 
     // 2. Gestion de la zone active via useEffect

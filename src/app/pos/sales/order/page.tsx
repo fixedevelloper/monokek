@@ -1,39 +1,25 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import {
-    Search,
-    Printer,
-    RotateCcw,
-    History,
-    Filter,
-    CheckCircle2,
-    Clock,
-    XCircle,
-    ReceiptText,
-    CreditCard,
-    Lock,
-    HistoryIcon,
-    MoreVertical
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { formatCurrency } from '@/src/lib/formatCurrency';
-import { cn } from '@/lib/utils';
-import { Order, OrderStatus } from '@/src/types/menus';
+import React, {useEffect, useState} from 'react';
+import {CreditCard, History, Printer, ReceiptText, RotateCcw, Search} from 'lucide-react';
+import {Button} from '@/components/ui/button';
+import {Input} from '@/components/ui/input';
+import {Card, CardContent} from '@/components/ui/card';
+import {Badge} from '@/components/ui/badge';
+import {ScrollArea} from '@/components/ui/scroll-area';
+import {formatCurrency} from '@/src/lib/formatCurrency';
+import {cn} from '@/lib/utils';
+import {Order, OrderStatus} from '@/src/types/menus';
 import api from '@/src/lib/axios';
-import { useUIStore } from '@/src/store/use-ui-store';
-import { toast } from 'sonner';
-import { usePrint } from '@/src/hooks/use-print';
-import { useCashStore } from '@/src/store/use-cash-store';
+import {useUIStore} from '@/src/store/use-ui-store';
+import {toast} from 'sonner';
+import {usePrint} from '@/src/hooks/use-print';
+import {useCashStore} from '@/src/store/use-cash-store';
 import CashOpenModal from '../CashOpenModal';
-import { useRouter } from 'next/navigation';
-import CashReportTicket from '../CashReportTicket';
-import { useEcho } from '@/src/hooks/useEcho';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import {useRouter} from 'next/navigation';
+import {useEcho} from '@/src/hooks/useEcho';
+import { Layers, Clock, User } from 'lucide-react';
+import {Round} from "../../../../types/menus";
 
 export default function PosSalesPage() {
     const [orders, setOrders] = useState<Order[]>([]);
@@ -44,7 +30,6 @@ export default function PosSalesPage() {
     const [isClosing, setIsClosing] = useState(false);
     const [closingAmount, setClosingAmount] = useState("");
     const [note, setNote] = useState("");
-    const { printReceipt } = usePrint();
     const [showReport, setShowReport] = useState(false);
     const [lastReport, setLastReport] = useState(null);
     const router = useRouter();
@@ -173,79 +158,40 @@ export default function PosSalesPage() {
         }
     };
 
-    const handlePrint = async (selectedSale: any) => {
-        if (!selectedSale) {
-            toast.error("Aucune vente sélectionnée pour l'impression");
+    const handlePrint = async (sale: any) => {
+        if (!sale) {
+            toast.error("Aucune vente sélectionnée");
             return;
         }
 
+        const toastId = toast.loading("Préparation de l'impression...");
+
         try {
-
-            // 1. Préparation des données pour le format thermique (ESC/POS)
-            // On s'assure que la structure correspond au OrderPayload de Rust
-            const printData = {
-                // Référence de la commande (ex: CMD-HSEMJYWO)
-                reference: selectedSale.reference,
-
-                // Client (Pas de champ customer dans ton JSON, donc "Client Passant")
-                customer_name: selectedSale.customer?.name || "Client Passant",
-
-                // Date et Heure (On combine la date et created_at du JSON)
-                date: `${selectedSale.date} à ${selectedSale.created_at}`,
-
-                // On récupère le total dans l'objet "amounts"
-                total: parseFloat(selectedSale.amounts.total),
-
-                // On traite les articles
-                items: selectedSale.items.map((item: any) => {
-                    // On crée le nom avec les modifiers (ex: Poisson Braisé + Alloco, Frites)
-                    const modifiersList = item.modifiers && item.modifiers.length > 0
-                        ? ` (${item.modifiers.map((m: any) => m.name).join(', ')})`
-                        : '';
-
-                    return {
-                        name: `${item.product?.name}${modifiersList}`,
-                        qty: parseInt(item.qty),
-                        price: parseFloat(item.price)
-                    };
-                }),
-
-                // Optionnel : ajouter le serveur et la table pour le ticket
-                waiter_name: selectedSale.waiter?.name,
-                table_name: selectedSale.table?.name
-            };
-
-            // Envoi vers le Rust
-            await printReceipt(printData);
-
-        } catch (error) {
-            console.error("Erreur lors de la préparation de l'impression:", error);
-            toast.error("Impossible de générer le ticket de caisse");
-        }
-    };
-    const handleCloseShift2 = async () => {
-        try {
-            const response = await api.post('api/cash/close', {
-                closing_amount: parseFloat(closingAmount),
-                note: note
+            /**
+             * On demande au serveur de créer un job d'impression.
+             * Le serveur va :
+             * 1. Créer une entrée dans `print_queue`
+             * 2. Diffuser l'événement via Reverb (Socket)
+             */
+            await api.post(`/api/sales/${sale.id}/reprint`, {
+                type: 'receipt'
             });
 
-            // 1. On affiche le rapport de clôture (X-Report)
-            console.log("Rapport de clôture:", response.data.report);
-            toast.success("Shift clôturé avec succès !");
+            toast.success("Demande d'impression envoyée", { id: toastId });
 
-            // 2. Optionnel : On imprime automatiquement le ticket de fin de shift
-            // handlePrintReport(response.data.report);
+            /**
+             * Note : Vous n'avez pas besoin d'appeler usePrint ici.
+             * Votre hook useEcho (qui écoute le canal de la branche)
+             * captera automatiquement le message et lancera l'impression
+             * physique via le plugin thermal.
+             */
 
-            // 3. On réinitialise le Store de caisse pour bloquer les ventes
-            useCashStore.getState().closeSession();
-
-            setIsClosing(false);
-            router.push('/login');
         } catch (error) {
-            toast.error("Erreur lors de la clôture de la caisse");
+            console.error("Erreur commande impression:", error);
+            toast.error("Impossible de lancer l'impression", { id: toastId });
         }
     };
+
     const confirmFinalClose = async () => {
         try {
             const response = await api.post('api/cash/close', {
@@ -261,6 +207,8 @@ export default function PosSalesPage() {
             setIsClosing(false);
             setPreviewData(null);
 
+            // Appel du hook
+           // await printSessionReport(previewData);
             toast.success("Shift terminé et enregistré");
             useCashStore.getState().closeSession();
         } catch (error) {
@@ -275,9 +223,8 @@ export default function PosSalesPage() {
     }
     return (
         <div className="flex flex-col h-full p-1 space-y-6">
-            {/* Top Bar : Identique mais fonctionnelle */}
+            {/* Top Bar : Identique */}
             <div className="p-4 bg-card border-b flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                {/* Titre */}
                 <div className="flex items-center gap-2 shrink-0">
                     <History className="h-5 w-5 text-primary" />
                     <h1 className="font-black uppercase tracking-tight italic whitespace-nowrap">
@@ -285,63 +232,24 @@ export default function PosSalesPage() {
                     </h1>
                 </div>
 
-                {/* Recherche */}
                 <div className="w-full md:flex-1 md:max-w-md relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                        placeholder="Rechercher une référence (ex: CMD-XXXX)..."
+                        placeholder="Rechercher par montant..."
                         className="pl-10 h-11 bg-muted/50 border-none font-bold"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-
-                {/* Actions */}
-               {/*  <div className="self-end md:self-auto shrink-0">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-10 w-10 rounded-full border border-transparent hover:border-stone-200"
-                            >
-                                <MoreVertical size={18} /> Actions
-                            </Button>
-                        </DropdownMenuTrigger>
-
-                        <DropdownMenuContent
-                            align="end"
-                            className="w-48 rounded-xl p-2 border-stone-200 shadow-xl"
-                        >
-                            <DropdownMenuItem
-                                onClick={
-                                    handleGoHistory
-                                }
-                                className="gap-2 py-3 cursor-pointer rounded-lg">
-                                <HistoryIcon size={14} className="text-stone-500" />
-                                <span className="font-bold text-xs uppercase tracking-wider">
-                                    Historiques
-                                </span>
-                            </DropdownMenuItem>
-
-                            <DropdownMenuItem className="gap-2 py-3 cursor-pointer rounded-lg text-red-600 focus:bg-red-50 focus:text-red-600">
-                                <Lock size={14} />
-                                <span className="font-bold text-xs uppercase tracking-wider">
-                                    Fermer
-                                </span>
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </div> */}
             </div>
 
             <div className="flex-1 flex overflow-hidden">
-                {/* Liste des ventes (Gauche) */}
+                {/* Liste des ventes (Gauche) : Identique */}
                 <div className="w-full md:w-[450px] border-r bg-card flex flex-col">
                     <ScrollArea className="flex-1 min-h-0 [&>[data-radix-scroll-area-viewport]]:scroll-smooth">
                         <div className="p-4 space-y-3">
                             {loading ? (
-                                <p className="text-center p-8 font-black animate-pulse text-muted-foreground uppercase text-xs">Chargement des tickets...</p>
+                                <p className="text-center p-8 font-black animate-pulse text-muted-foreground uppercase text-xs">Chargement...</p>
                             ) : filteredOrders.map((order) => (
                                 <div
                                     key={order.id}
@@ -356,17 +264,12 @@ export default function PosSalesPage() {
                                         <div className="flex flex-col">
                                             <span className="font-black text-slate-900 tracking-tighter italic">{order.reference}</span>
                                             <span className="text-[10px] text-muted-foreground font-bold uppercase mt-1">
-                                                {order.date} • {order.created_at}
+                                                {order.table?.name || 'Emporter'} • {order.created_at}
                                             </span>
                                         </div>
                                         <div className="text-right">
                                             <p className="font-black text-lg text-slate-900">{order.amounts.formatted_total}</p>
-                                            <Badge
-                                                className={cn(
-                                                    "px-3 py-1 rounded-full font-black uppercase text-[10px] border-none shadow-sm",
-                                                    STATUS_CONFIG[order.status].color
-                                                )}
-                                            >
+                                            <Badge className={cn("px-3 py-1 rounded-full font-black uppercase text-[10px] border-none shadow-sm", STATUS_CONFIG[order.status].color)}>
                                                 {STATUS_CONFIG[order.status].label}
                                             </Badge>
                                         </div>
@@ -377,7 +280,7 @@ export default function PosSalesPage() {
                     </ScrollArea>
                 </div>
 
-                {/* Détails du Ticket (Droite) */}
+
                 <div className="hidden md:flex flex-1 flex-col bg-card border-l overflow-hidden">
                     {!selectedSale ? (
                         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
@@ -387,66 +290,108 @@ export default function PosSalesPage() {
                             <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Sélectionnez un ticket</h3>
                         </div>
                     ) : (
-                        <div className="flex-1 flex flex-col p-10 animate-in fade-in slide-in-from-right-4">
-                            <div className="flex justify-between items-start mb-10">
+                        <div className="flex-1 flex flex-col p-10 h-full overflow-hidden animate-in fade-in slide-in-from-right-4">
+                            <div className="flex justify-between items-start mb-6 shrink-0">
                                 <div>
                                     <Badge variant="outline" className="mb-3 font-black tracking-widest px-3 py-1 rounded-full">{selectedSale.reference}</Badge>
                                     <h2 className="text-6xl font-black tracking-tighter italic">{selectedSale.amounts.formatted_total}</h2>
                                     <div className="flex gap-4 mt-2">
-                                        <p className="text-[10px] font-black text-muted-foreground uppercase">Servi par: <span className="text-primary">{selectedSale.waiter?.name}</span></p>
+                                        <p className="text-[10px] font-black text-muted-foreground uppercase flex items-center gap-1">
+                                            <User size={12} className="text-primary"/> <span className="text-primary">{selectedSale.waiter?.name}</span>
+                                        </p>
                                         <p className="text-[10px] font-black text-muted-foreground uppercase">Table: <span className="text-primary">{selectedSale.table?.name || 'Emporter'}</span></p>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* LISTE RÉELLE DES ARTICLES */}
-                            <div className="flex-1 bg-slate-50/50 rounded-[2.5rem] p-8 border-2 border-dashed border-slate-200 mb-8 overflow-y-auto">
-                                <p className="text-[10px] font-black uppercase text-slate-400 mb-6 tracking-widest">Détails de la commande</p>
-                                <div className="space-y-6">
-                                    {selectedSale.items?.map((item, idx) => (
-                                        <div key={idx} className="flex justify-between items-center group">
-                                            <div className="flex flex-col">
-                                                <span className="font-black text-slate-800 text-sm">{item.qty}x {item.product.name}</span>
-                                                {item.modifiers?.map(m => (
-                                                    <span key={m.id} className="text-[10px] text-primary font-bold uppercase tracking-tighter">+ {m.name}</span>
+                            {/* LISTE DES ARTICLES GROUPÉS PAR ROUNDS */}
+                            <ScrollArea className="flex-1 min-h-0 w-full bg-slate-50/50 rounded-[2.5rem] p-8 border-2 border-dashed border-slate-200 mb-8">
+                                <div className="space-y-10">
+                                    {selectedSale.rounds?.map((round, rIdx) => (
+                                        <div key={round.id} className="relative">
+                                            {/* Header du Round */}
+                                            <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="h-6 w-6 rounded-lg bg-primary text-white flex items-center justify-center">
+                                                        <Layers size={12} />
+                                                    </div>
+                                                    <span className="font-black text-xs uppercase italic tracking-widest">
+                                                        Round {round.round_number}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-1 text-muted-foreground">
+                                                    <Clock size={12} />
+                                                    <span className="text-[10px] font-bold uppercase">{round.sent_at_formatted || 'Envoyé'}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Items du Round */}
+                                            <div className="space-y-4 pl-4">
+                                                {round.items?.map((item, idx) => (
+                                                    <div key={idx} className="flex justify-between items-start group">
+                                                        <div className="flex flex-col">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="h-5 w-5 rounded bg-slate-200 flex items-center justify-center text-[10px] font-black">{item.qty}</span>
+                                                                <span className="font-black text-slate-800 text-sm uppercase">{item.product.name}</span>
+                                                            </div>
+                                                            {item.modifiers?.map(m => (
+                                                                <span key={m.id} className="text-[10px] text-primary font-bold uppercase tracking-tighter ml-7">
+                                                                    + {m?.name || m.name}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                        <span className="font-black text-slate-900 text-sm">
+                                                            {formatCurrency(item.total)}
+                                                        </span>
+                                                    </div>
                                                 ))}
                                             </div>
-                                            <span className="font-black text-slate-900">{formatCurrency(item.total)}</span>
                                         </div>
                                     ))}
+
+                                    {/* Cas où il n'y a pas encore de rounds (compatibilité) */}
+                                    {/* On vérifie que rounds EXISTE et qu'il n'est PAS vide */}
+                                    {selectedSale.rounds && selectedSale.rounds.length > 0 && (
+                                        <div className="space-y-4">
+                                            {selectedSale.rounds.map((round: Round, idx: number) => (
+                                                <div key={round.id || idx} className="space-y-2">
+                                                    {/* On boucle sur les items à l'intérieur du round */}
+                                                    {round.items?.map((item: any, itemIdx: number) => (
+                                                        <div key={itemIdx} className="flex justify-between items-center group">
+                        <span className="font-black text-slate-800 text-sm">
+                            {item.qty}x {item.product.name}
+                        </span>
+                                                            <span className="font-black text-slate-900">
+                            {formatCurrency(item.total)}
+                        </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
+                            </ScrollArea>
 
-                            <div className="flex flex-col gap-4">
-
-                                { (selectedSale.status === 'completed' || selectedSale.status === 'pending_payment') && (
+                            {/* Actions Footer : Identique */}
+                            <div className="flex flex-col gap-4 shrink-0">
+                                {(selectedSale.status === 'completed' || selectedSale.status === 'pending_payment' || selectedSale.status === 'billing') && (
                                     <Button
-                                        className="h-20 w-full flex items-center justify-center gap-3 rounded-3xl shadow-2xl shadow-emerald-500/20 bg-emerald-600 hover:bg-emerald-700 text-white transition-all active:scale-95 animate-in slide-in-from-top-2 duration-300"
-                                        // On passe l'objet selectedSale complet au modal pour qu'il ait le montant et les items
+                                        className="h-20 w-full flex items-center justify-center gap-3 rounded-3xl shadow-2xl shadow-emerald-500/20 bg-emerald-600 hover:bg-emerald-700 text-white transition-all active:scale-95"
                                         onClick={() => openPayment(selectedSale)}
                                     >
-                                        <div className="bg-white/20 p-2 rounded-xl">
-                                            <CreditCard className="h-6 w-6" />
-                                        </div>
+                                        <div className="bg-white/20 p-2 rounded-xl"><CreditCard className="h-6 w-6" /></div>
                                         <div className="flex flex-col items-start text-left">
-                                            <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80 leading-none mb-1">
-                                                Paiement en attente
-                                            </span>
-                                            <span className="text-sm font-black uppercase tracking-widest leading-none">
-                                                Encaisser {formatCurrency(selectedSale.amounts.total)}
-                                            </span>
+                                            <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80 mb-1">Action Requise</span>
+                                            <span className="text-sm font-black uppercase tracking-widest">Encaisser {selectedSale.amounts.formatted_total}</span>
                                         </div>
                                     </Button>
                                 )}
 
-                                {/* Grille d'actions secondaires */}
                                 <div className="grid grid-cols-2 gap-6">
                                     <Button
-                                        className="h-20 flex flex-col gap-1 rounded-3xl shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90 transition-all active:scale-95"
-                                        onClick={() =>
-                                            handlePrint(selectedSale)
-
-                                        }
+                                        className="h-20 flex flex-col gap-1 rounded-3xl shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90"
+                                        onClick={() => handlePrint(selectedSale)}
                                     >
                                         <Printer className="h-6 w-6" />
                                         <span className="text-[10px] font-black uppercase tracking-widest">Imprimer Facture</span>
@@ -455,8 +400,7 @@ export default function PosSalesPage() {
                                     <Button
                                         variant="outline"
                                         disabled={selectedSale.status === 'cancelled' || selectedSale.status === 'paid'}
-                                        className="h-20 flex flex-col gap-1 rounded-3xl border-2 border-slate-100 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all"
-                                    /*   onClick={() => handleCancel(selectedSale.id)} */
+                                        className="h-20 flex flex-col gap-1 rounded-3xl border-2 border-slate-100 hover:bg-red-50 hover:text-red-600 transition-all"
                                     >
                                         <RotateCcw className="h-6 w-6" />
                                         <span className="text-[10px] font-black uppercase tracking-widest">Annuler Ticket</span>
@@ -468,7 +412,7 @@ export default function PosSalesPage() {
                 </div>
             </div>
 
-            {/* Footer Session : Calculé dynamiquement */}
+            {/* Footer Session Global : Identique */}
             <div className="p-6 bg-slate-900 text-white flex justify-between items-center rounded-t-[2.5rem] shadow-2xl">
                 <div className="flex gap-12">
                     <div>
@@ -481,10 +425,7 @@ export default function PosSalesPage() {
                     </div>
                 </div>
                 <Button
-                    onClick={() =>
-
-                        handlePreviewCloture()
-                    }
+                    onClick={() => handlePreviewCloture()}
                     className="bg-white text-slate-900 hover:bg-emerald-500 hover:text-white px-8 h-14 rounded-2xl font-black uppercase tracking-widest transition-all"
                 >
                     Clôturer Shift
@@ -541,20 +482,6 @@ export default function PosSalesPage() {
                     </Card>
                 </div>
             )}
-            {/* Le Ticket Virtuel */}
-            {/*      {showReport && lastReport && (
-                <CashReportTicket
-                    data={lastReport}
-                    onClose={() => {
-                        setShowReport(false);
-                        useCashStore.getState().closeSession();
-                    }}
-                    onPrint={() => {
-                        // Appelle ici ta fonction Rust de Tauri pour imprimer le texte brut
-                        // handlePrintESC(lastReport);
-                    }}
-                />
-            )} */}
             {isClosing && previewData && (
                 <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
                     <Card className="max-w-md w-full rounded-[2.5rem] shadow-2xl border-none">

@@ -1,13 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Settings, Globe, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import { isTauri } from '@tauri-apps/api/core';
+import {useEffect, useState} from 'react';
+import {useRouter} from 'next/navigation';
+import {AlertCircle, CheckCircle2, Globe, Loader2, Settings} from 'lucide-react';
+import {Card, CardContent} from "@/components/ui/card";
+import {Input} from "@/components/ui/input";
+import {Button} from "@/components/ui/button";
+import {toast} from "sonner";
 
 export default function SetupPage() {
     const router = useRouter();

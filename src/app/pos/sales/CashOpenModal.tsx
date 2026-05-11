@@ -1,13 +1,13 @@
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import {Button} from "@/components/ui/button";
+import {Card} from "@/components/ui/card";
+import {Input} from "@/components/ui/input";
 import api from "@/src/lib/axios";
-import { useAuthStore } from "@/src/store/use-auth-store";
-import { useCashStore } from "@/src/store/use-cash-store";
-import { Banknote, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { toast } from "sonner";
+import {useAuthStore} from "@/src/store/use-auth-store";
+import {useCashStore} from "@/src/store/use-cash-store";
+import {Banknote, Loader2} from "lucide-react";
+import {useRouter} from "next/navigation";
+import {useState} from "react";
+import {toast} from "sonner";
 
 export default function CashOpenModal() {
   const [amount, setAmount] = useState('');

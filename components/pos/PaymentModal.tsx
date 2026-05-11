@@ -33,7 +33,7 @@ const NUMPAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', 'ba
 export default function PaymentModal() {
   const { isPaymentModalOpen, closePayment, selectedSaleForPayment } = useUIStore();
   const { total: cartTotal, clearCart, items: cartItems } = useCartStore();
-  const { printReceipt } = usePrint();
+  const { processPrintJob } = usePrint();
   
   const [amountReceived, setAmountReceived] = useState<string>("0");
   const [selectedMethod, setSelectedMethod] = useState<number>(1);
@@ -108,8 +108,9 @@ const handleFinalize = async () => {
 
     // 2. Gestion de l'impression (try/catch interne optionnel)
     // On attend l'impression, mais on peut aussi ne pas bloquer le succès si l'imprimante échoue
+/*
     try {
-      await printReceipt({ 
+      await processPrintJob({
         total: total, 
         items: displayData.items, 
         reference: data.reference || displayData.reference || uuid,
@@ -119,6 +120,7 @@ const handleFinalize = async () => {
       console.warn("Échec impression ticket:", printErr);
       toast.info("Paiement validé, mais l'impression a échoué.");
     }
+*/
 
     toast.success(data.message || "Paiement validé !");
     

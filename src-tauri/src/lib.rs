@@ -102,6 +102,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_notification::init()) // Note: .init() est souvent utilisé en v2
         .plugin(tauri_plugin_opener::init())
+       .plugin(tauri_plugin_thermal_printer::init())
         .invoke_handler(tauri::generate_handler![
             greet,
             print_thermal_receipt,

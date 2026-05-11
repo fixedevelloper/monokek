@@ -1,23 +1,17 @@
 'use client'
 
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { 
-    ArrowLeft, Plus, RefreshCcw, Layers, 
-    MoreVertical, Pencil, Trash2, Utensils 
-} from 'lucide-react';
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from 'sonner';
+import React, {useEffect, useState} from 'react';
+import {useRouter} from 'next/navigation';
+import {ArrowLeft, Layers, MoreVertical, Pencil, RefreshCcw, Trash2, Utensils} from 'lucide-react';
+import {Button} from "@/components/ui/button";
+import {Card, CardContent} from "@/components/ui/card";
+import {Skeleton} from "@/components/ui/skeleton";
+import {toast} from 'sonner';
 import api from '@/src/lib/axios';
-import { Floor } from '@/src/types/tables';
-import { 
-    DropdownMenu, DropdownMenuContent, DropdownMenuItem, 
-    DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu";
-import { AddFloorModal } from './AddFloorModal';
-import { EditFloorModal } from './EditFloorModal';
+import {Floor} from '@/src/types/tables';
+import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from "@/components/ui/dropdown-menu";
+import {AddFloorModal} from './AddFloorModal';
+import {EditFloorModal} from './EditFloorModal';
 
 export default function AdminFloorsPage() {
     const router = useRouter();

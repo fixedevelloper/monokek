@@ -1,0 +1,144 @@
+// components/modals/IPConfigModal.tsx
+import React, {useEffect, useState} from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {AlertCircle, CheckCircle2, Globe, Loader2} from "lucide-react";
+import {useRouter} from "next/navigation";
+import {toast} from "sonner";
+
+export function IPConfigModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+    const router = useRouter();
+    const [ip, setIp] = useState('');
+    const [testing, setTesting] = useState(false);
+    const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+    // 1. Chargement initial avec la syntaxe V2
+    useEffect(() => {
+        const loadConfig = async () => {
+            try {
+                const { load } = await import("@tauri-apps/plugin-store");
+                const store = await load(".settings.json", {
+                    autoSave: true,
+                    defaults: {}
+                });
+                const savedIp = await store.get<string>("backend-ip");
+                if (savedIp) setIp(savedIp);
+            } catch (e) {
+                console.error("Erreur chargement config:", e);
+            }
+        };
+        loadConfig();
+    }, []);
+    // Vérifie si l'objet __TAURI__ est présent dans la fenêtre globale
+    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+    const handleSave = async () => {
+        setTesting(true);
+        setStatus('idle');
+
+        let cleanIp = ip.trim().replace(/\/+$/, "");
+        if (!cleanIp.startsWith('https')) {
+            cleanIp = `http://${cleanIp}`;
+        }
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        try {
+
+            // 1. Test de connexion (Identique pour les deux)
+            const response = await fetch(`${cleanIp}/api/ping`, {
+                signal: controller.signal,
+                headers: { 'Accept': 'application/json' }
+            });
+
+            if (!response.ok) throw new Error("Serveur injoignable");
+            const data = await response.json();
+
+            if (data.status === 'ok') {
+                const ipToStore = cleanIp.replace('http://', '');
+
+                // 2. Stockage intelligent selon l'instance
+                if (isTauri) {
+                    // --- MODE DESKTOP (TAURI) ---
+                    const { load } = await import("@tauri-apps/plugin-store");
+                    const store = await load(".settings.json", {
+                        autoSave: true,
+                        defaults: {}
+                    });
+
+                    await store.set("backend-ip", ipToStore);
+                    await store.save();
+                    console.log("Config sauvegardée dans le Store Tauri");
+                } else {
+                    // --- MODE WEB (NEXTJS / BROWSER) ---
+                    localStorage.setItem("backend-ip", ipToStore);
+                    console.log("Config sauvegardée dans le LocalStorage");
+                }
+
+                setStatus('success');
+                toast.success("Terminal connecté au serveur");
+               onClose()
+
+            } else {
+                throw new Error("Réponse invalide du serveur");
+            }
+        } catch (error) {
+            setStatus('error');
+            toast.error("Connexion échouée : vérifiez l'IP et le réseau");
+        } finally {
+            setTesting(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="rounded-[2rem] max-w-sm">
+                <DialogHeader>
+                    <DialogTitle className="text-center flex flex-col items-center gap-2">
+                        <Globe className="h-8 w-8 text-indigo-600" />
+                        Configuration Réseau
+                    </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <h1 className="text-3xl font-serif font-bold text-stone-900 italic">Configuration</h1>
+                        <p className="text-sm text-stone-500 font-medium tracking-wide">
+                            Adresse IP du serveur central
+                        </p>
+                    </div>
+
+                    <div className="w-full space-y-4 mt-4">
+                        <div className="relative">
+                            <Globe className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-stone-300" />
+                            <Input
+                                value={ip}
+                                onChange={(e) => setIp(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+                                placeholder="ex: 192.168.1.50"
+                                className="h-14 pl-12 rounded-2xl bg-stone-50 border-none font-mono font-bold text-lg text-stone-800 placeholder:text-stone-200 focus-visible:ring-stone-900"
+                            />
+                        </div>
+
+                        <Button
+                            onClick={handleSave}
+                            disabled={testing || !ip}
+                            className={`w-full h-14 rounded-2xl font-black uppercase tracking-[0.2em] transition-all active:scale-95 ${status === 'success' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-stone-900 hover:bg-stone-800'
+                            }`}
+                        >
+                            {testing ? <Loader2 className="animate-spin" /> :
+                                status === 'success' ? <CheckCircle2 /> : "Vérifier & Enregistrer"}
+                        </Button>
+
+                        {status === 'error' && (
+                            <div className="flex items-center gap-2 text-red-500 text-[10px] font-bold uppercase tracking-wider justify-center animate-in fade-in zoom-in-95">
+                                <AlertCircle size={14} /> Impossible de joindre le backend
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}

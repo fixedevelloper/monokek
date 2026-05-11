@@ -1,17 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import {
-    Dialog, DialogContent, DialogHeader, DialogTitle,
-    DialogFooter
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ShieldCheck, Loader2, Lock, Unlock, Info } from "lucide-react";
-import { toast } from "sonner";
-import { Permission, StaffMember } from "@/src/types/management";
+import {useEffect, useMemo, useState} from "react";
+import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@/components/ui/dialog";
+import {Button} from "@/components/ui/button";
+import {Checkbox} from "@/components/ui/checkbox";
+import {Info, Loader2, ShieldCheck} from "lucide-react";
+import {toast} from "sonner";
+import {Permission, StaffMember} from "@/src/types/management";
 import api from "@/src/lib/axios";
-
 
 
 interface PermissionsModalProps {

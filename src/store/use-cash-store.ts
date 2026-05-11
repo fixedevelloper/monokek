@@ -7,15 +7,17 @@ interface CashState {
   setSession: (session: any) => void;
   closeSession: () => void;
 }
-
 export const useCashStore = create<CashState>()(
-  persist(
-    (set) => ({
-      currentSession: null,
-      isOpen: false,
-      setSession: (session) => set({ currentSession: session, isOpen: true }),
-      closeSession: () => set({ currentSession: null, isOpen: false }),
-    }),
-    { name: 'cash-storage' }
-  )
+    persist(
+        (set) => ({
+            currentSession: null,
+            isOpen: false,
+            setSession: (session) => set({
+                currentSession: session,
+                isOpen: !!session // Si session est null, isOpen sera false
+            }),
+            closeSession: () => set({ currentSession: null, isOpen: false }),
+        }),
+        { name: 'cash-storage' }
+    )
 );

@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { Plus, Search, Loader2, ArrowLeft, Minus, History, AlertCircle } from 'lucide-react';
-import { useStockStore } from "@/src/store/use-stock-store";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { AddIngredientModal } from './AddIngredientModal';
-import { cn } from '@/src/lib/utils';
-import { AdjustStockModal } from './AdjustStockModal';
+import React, {useEffect, useState} from 'react';
+import {AlertCircle, ArrowLeft, History, Loader2, Minus, Plus, Search} from 'lucide-react';
+import {useStockStore} from "@/src/store/use-stock-store";
+import {Button} from "@/components/ui/button";
+import {Input} from "@/components/ui/input";
+import {AddIngredientModal} from './AddIngredientModal';
+import {cn} from '@/src/lib/utils';
+import {AdjustStockModal} from './AdjustStockModal';
 
 export default function StockPage() {
   const { ingredients, isLoading, fetchIngredients, fetchUnits } = useStockStore();

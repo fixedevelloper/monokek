@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Plus, Trash2, Save, Loader2, Search } from 'lucide-react';
-import { useStockStore } from "@/src/store/use-stock-store";
+import React, {useEffect, useState} from 'react';
+import {Sheet, SheetContent, SheetHeader, SheetTitle} from "@/components/ui/sheet";
+import {Button} from "@/components/ui/button";
+import {Input} from "@/components/ui/input";
+import {Loader2, Plus, Save, Trash2} from 'lucide-react';
+import {useStockStore} from "@/src/store/use-stock-store";
 import api from "@/src/lib/axios";
-import { toast } from "sonner";
+import {toast} from "sonner";
 
 export function RecipeSheet({ product, open, onOpenChange }: any) {
   const { ingredients, fetchIngredients } = useStockStore();

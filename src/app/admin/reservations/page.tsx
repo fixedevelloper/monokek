@@ -12,7 +12,6 @@ import {ReservationSheet} from "./ReservationSheet";
 import {formatCurrency} from "../../../lib/formatCurrency";
 import {ReservationDetailModal} from "./ReservationDetailModal";
 import {toast} from "sonner";
-import {window} from "@tauri-apps/api";
 import Link from "next/link";
 
 

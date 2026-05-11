@@ -1,19 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { 
-    Dialog, DialogContent, DialogHeader, DialogTitle, 
-    DialogTrigger, DialogFooter 
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { 
-    Select, SelectContent, SelectItem, 
-    SelectTrigger, SelectValue 
-} from "@/components/ui/select";
-import { Plus, LayoutGrid, Users, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import {useState} from "react";
+import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger} from "@/components/ui/dialog";
+import {Label} from "@/components/ui/label";
+import {Input} from "@/components/ui/input";
+import {Button} from "@/components/ui/button";
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
+import {LayoutGrid, Loader2, Plus, Users} from "lucide-react";
+import {toast} from "sonner";
 import api from "@/src/lib/axios";
 
 interface Floor {

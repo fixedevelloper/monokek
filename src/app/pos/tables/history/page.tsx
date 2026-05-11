@@ -1,18 +1,17 @@
-
 'use client'
-import React, { useState, useEffect, useCallback } from 'react';
-import { Clock, ChevronRight, CheckCircle2, Timer, Utensils, Loader2, Calendar as CalendarIcon, Filter } from 'lucide-react';
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
-import { cn } from '@/src/lib/utils';
-import { useEcho } from '@/src/hooks/useEcho';
+import React, {useCallback, useEffect, useState} from 'react';
+import {Calendar as CalendarIcon, CheckCircle2, Clock, Filter, Loader2, Timer, Utensils} from 'lucide-react';
+import {Badge} from "@/components/ui/badge";
+import {Card} from "@/components/ui/card";
+import {Button} from "@/components/ui/button";
+import {Calendar} from "@/components/ui/calendar";
+import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
+import {format} from "date-fns";
+import {fr} from "date-fns/locale";
+import {cn} from '@/src/lib/utils';
+import {useEcho} from '@/src/hooks/useEcho';
 import api from '@/src/lib/axios';
-import { Order } from '@/src/types/menus';
+import {Order} from '@/src/types/menus';
 
 export default function WaiterHistory() {
   const [orders, setOrders] = useState<Order[]>([]);

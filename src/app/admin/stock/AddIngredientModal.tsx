@@ -1,13 +1,13 @@
 "use client";
 
 import React from 'react';
-import { useForm } from "react-hook-form";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useStockStore } from "@/src/store/use-stock-store";
-import { toast } from "sonner";
+import {useForm} from "react-hook-form";
+import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@/components/ui/dialog";
+import {Button} from "@/components/ui/button";
+import {Input} from "@/components/ui/input";
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
+import {useStockStore} from "@/src/store/use-stock-store";
+import {toast} from "sonner";
 
 export function AddIngredientModal({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
   const { units, addIngredient } = useStockStore();

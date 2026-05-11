@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Lock, Unlock, User, Delete, LogOut, Loader2 } from 'lucide-react';
+import React, {useState} from 'react';
+import {AnimatePresence, motion} from 'framer-motion';
+import {Delete, Loader2, Lock, LogOut} from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { useAuth } from '@/src/hooks/use-auth';
-import { useUIStore } from '@/src/store/use-ui-store';
+import {Button} from '@/components/ui/button';
+import {cn} from '@/lib/utils';
+import {useAuth} from '@/src/hooks/use-auth';
+import {useUIStore} from '@/src/store/use-ui-store';
 import api from '@/src/lib/axios';
 
 export default function LockScreen() {

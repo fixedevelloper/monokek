@@ -1,18 +1,23 @@
 'use client'
-import { Inter } from "next/font/google";
+import {Inter} from "next/font/google";
 import "./globals.css";
 
-import { ThemeProvider } from "@/components/theme-provider";
+import {ThemeProvider} from "@/components/theme-provider";
 //import Sidebar from "@/components/layout/Sidebar";
-import { Toaster } from "sonner";
+import {Toaster} from "sonner";
 import LockScreen from "./(auth)/lock/page";
 import QueryProvider from "../providers/QueryProvider";
-import { TooltipProvider } from "@/components/ui/tooltip"
+import {TooltipProvider} from "@/components/ui/tooltip"
 import PaymentModal from "@/components/pos/PaymentModal";
+import {useEffect, useState} from 'react';
+import {usePathname, useRouter} from 'next/navigation';
+import {cn} from "@/lib/utils";
+import {LicenseGuard} from "../../components/layout/LicenseGuard";
+import {usePrint} from "../hooks/use-print";
+import {useEcho} from "../hooks/useEcho";
+import {getLocalSettings} from "../lib/storage";
+
 const inter = Inter({ subsets: ["latin"] });
-import { useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { cn } from "@/lib/utils";
 
 export default function RootLayout({
   children,
@@ -22,7 +27,42 @@ export default function RootLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [isReady, setIsReady] = useState(false);
+  const { processPrintJob, checkPendingJobs } = usePrint();
+  const echo = useEcho();
 
+  useEffect(() => {
+    let channel: any = null;
+
+    const setupRealtimePrinting = async () => {
+      const settings = await getLocalSettings();
+      const branchId = settings?.branch_id;
+
+      if (echo && branchId) {
+        console.log(`[Printer] 🎧 Écoute active sur la branche: ${branchId}`);
+
+        // 1. Écoute des nouveaux jobs en temps réel
+        channel = echo.channel(`branch.${branchId}`)
+            .listen('.PrintJobCreated', (e: any) => {
+              console.log("[Printer] 🚀 Signal reçu via Socket pour le job:", e.job.id);
+              processPrintJob(e.job);
+            });
+      }
+    };
+
+    setupRealtimePrinting();
+
+    // 2. Polling de sécurité (toutes les 60 secondes)
+    // Utile si le socket a été déconnecté momentanément
+    const interval = setInterval(() => {
+      console.log("[Printer] 🔍 Vérification périodique des jobs en attente...");
+      checkPendingJobs();
+    }, 60000);
+
+    return () => {
+      if (channel) channel.stopListening('.PrintJobCreated');
+      clearInterval(interval);
+    };
+  }, [echo]);
   useEffect(() => {
     const checkConfig = async () => {
       const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -57,8 +97,10 @@ export default function RootLayout({
 
   return (
     <html lang="fr" suppressHydrationWarning>
-      <body className={cn("min-h-screen bg-background font-sans antialiased overflow-hidden", inter.className)}>
+      <body className={cn("min-h-screen bg-background font-sans antialiased overflow-hidden pt-[env(safe-area-inset-top)]", inter.className)}>
+        <div className="h-[env(safe-area-inset-top)] w-full" />
         <QueryProvider>
+          <LicenseGuard>
           <ThemeProvider attribute="class" defaultTheme="light">
             <TooltipProvider>
 
@@ -82,9 +124,11 @@ export default function RootLayout({
 
               <LockScreen />
               <PaymentModal />
-              <Toaster position="top-right" />
+
             </TooltipProvider>
           </ThemeProvider>
+          </LicenseGuard>
+          <Toaster position="top-right" />
         </QueryProvider>
       </body>
     </html>

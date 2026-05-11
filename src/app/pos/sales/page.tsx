@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Monitor, ArrowRight, Loader2 } from 'lucide-react';
+import {useEffect, useState} from 'react';
+import {useRouter} from 'next/navigation';
+import {ArrowRight, Loader2, Monitor} from 'lucide-react';
 import api from "@/src/lib/axios";
-import { toast } from "sonner";
+import {toast} from "sonner";
 
 export default function RegistersPage() {
     const [registers, setRegisters] = useState([]);

@@ -1,17 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { 
-    Dialog, DialogContent, DialogHeader, DialogTitle, 
-    DialogFooter 
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Layers, Loader2, Save } from "lucide-react";
-import { toast } from "sonner";
+import {useState} from "react";
+import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@/components/ui/dialog";
+import {Label} from "@/components/ui/label";
+import {Input} from "@/components/ui/input";
+import {Button} from "@/components/ui/button";
+import {Layers, Loader2, Save} from "lucide-react";
+import {toast} from "sonner";
 import api from "@/src/lib/axios";
-import { Floor } from "@/src/types/tables";
+import {Floor} from "@/src/types/tables";
 
 interface EditFloorModalProps {
     floor: Floor | null;

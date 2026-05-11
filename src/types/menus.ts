@@ -4,7 +4,21 @@ export interface ModifierItem {
     price: number;
     quantity: number;
 }
-
+export interface PrinterFormValues {
+    name: string;
+    type: string;
+    connection: string;
+    ip: string;
+    port: number;
+    branch_id: number;
+    location: string;      // Ajouté pour le typage
+    paper_width: string;   // Ajouté pour le typage
+    char_per_line: number; // Ajouté pour le typage
+    use_beep: boolean;     // Ajouté pour le typage
+}
+export interface Printer extends PrinterFormValues {
+    id: number | string;
+}
 export interface Modifier {
     id: number;
     name: string; // ex: "Cuisson", "Suppléments"
@@ -78,6 +92,15 @@ export interface OrderItem {
     modifiers?: OrderItemModifier[];
 }
 
+export interface Round {
+    id: number;
+    order_id: number;
+    round_number: number;
+    status: string;
+    sent_at: string;
+    sent_at_formatted?: string; // Formaté par le Resource Laravel (ex: "14:30")
+    items?: OrderItem[];
+}
 export interface Order {
     id: number;
     uuid: string;
@@ -100,7 +123,7 @@ export interface Order {
     };
 
     // Relations
-    items?: OrderItem[];
+    rounds?: Round[];
     table?: {
         id: number;
         name: string;
@@ -111,6 +134,10 @@ export interface Order {
         name: string;
     };
     cashier?: {
+        id: number;
+        name: string;
+    };
+    customer?: {
         id: number;
         name: string;
     };

@@ -1,19 +1,15 @@
-
-
 'use client'
-import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Calendar as CalendarIcon, ReceiptText, Loader2, Eye } from 'lucide-react';
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
-import { cn } from "@/lib/utils";
-
+import React, {useCallback, useEffect, useState} from 'react';
+import {Calendar as CalendarIcon, Eye, Loader2, ReceiptText, Search} from 'lucide-react';
+import {format} from "date-fns";
+import {fr} from "date-fns/locale";
 // Tes imports UI...
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Order } from '@/src/types/menus';
+import {Input} from "@/components/ui/input";
+import {Button} from "@/components/ui/button";
+import {Calendar} from "@/components/ui/calendar";
+import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
+import {Order} from '@/src/types/menus';
 import api from '@/src/lib/axios';
 
 export default function HistoryPage() {

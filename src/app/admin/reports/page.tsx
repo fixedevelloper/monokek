@@ -1,37 +1,35 @@
 "use client";
 
-import React, {useEffect, useState} from 'react';
+import React, {useState} from 'react';
 import {
-  ArrowDownRight,
-  ArrowLeft,
-  ArrowUpRight,
-  Badge,
-  Calendar as CalendarIcon,
-  Clock,
-  Download, FileDown,
-  Loader2,
-  Package,
-  TrendingUp,
-  Users,
-  Wallet
+    ArrowDownRight,
+    ArrowLeft,
+    ArrowUpRight,
+    Badge,
+    Calendar as CalendarIcon,
+    Clock,
+    FileDown,
+    Loader2,
+    Package,
+    TrendingUp,
+    Users,
+    Wallet
 } from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
-import {Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
+import {Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis} from 'recharts';
 import {formatCurrency} from '@/src/lib/formatCurrency';
 import {cn} from '@/lib/utils';
 import Link from 'next/link';
 import api from '@/src/lib/axios';
-import {formatDateLong} from '@/src/lib/utils';
 import {format, subDays} from 'date-fns';
-import { useQuery } from "@tanstack/react-query";
+import {useQuery} from "@tanstack/react-query";
 import {Progress} from "@/components/ui/progress";
 import {Avatar} from "@/components/ui/avatar";
 import {fr} from 'date-fns/locale';
 import {Popover, PopoverClose, PopoverContent, PopoverTrigger} from '@/components/ui/popover';
 import {Calendar} from '@/components/ui/calendar';
 import {useExport} from "../../../hooks/useExport";
-
 
 
 export default function ReportsPage() {

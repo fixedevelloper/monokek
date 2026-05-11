@@ -1,21 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-    Dialog, DialogContent, DialogHeader, DialogTitle,
-    DialogFooter
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import {
-    Select, SelectContent, SelectItem,
-    SelectTrigger, SelectValue
-} from "@/components/ui/select";
-import { Pencil, LayoutGrid, Users, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import {useEffect, useState} from "react";
+import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@/components/ui/dialog";
+import {Label} from "@/components/ui/label";
+import {Input} from "@/components/ui/input";
+import {Button} from "@/components/ui/button";
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
+import {Loader2, Pencil, Users} from "lucide-react";
+import {toast} from "sonner";
 import api from "@/src/lib/axios";
-import { Table, Floor } from "@/src/types/tables";
+import {Floor, Table} from "@/src/types/tables";
 
 interface EditTableModalProps {
     table: Table | null;

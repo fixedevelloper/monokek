@@ -1,9 +1,7 @@
-import { useState } from "react";
+import {useState} from "react";
 import {Layers, Plus, Save, X} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { ModifierItemForm } from "./ModifierItemForm";
-
-import { ChevronDown } from "lucide-react";
+import {Button} from "@/components/ui/button";
+import {ModifierItemForm} from "./ModifierItemForm";
 import {toast} from "sonner";
 import api from "../../../lib/axios";
 

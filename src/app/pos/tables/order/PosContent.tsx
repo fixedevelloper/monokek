@@ -1,12 +1,19 @@
 'use client'
-import React, {useState, useMemo, useEffect} from 'react';
-import {useSearchParams, useRouter} from 'next/navigation';
-import {useQuery} from '@tanstack/react-query';
+import React, {useEffect, useMemo, useState} from 'react';
+import {useRouter, useSearchParams} from 'next/navigation';
+import {useQuery, useQueryClient} from '@tanstack/react-query';
 import {
-    ShoppingCart, Trash2, Utensils, Minus, Plus,
-    ChevronRight, ChevronLeft, Search, Store, UtensilsCrossed
+    ChevronLeft,
+    ChevronRight,
+    Minus,
+    Plus,
+    Search,
+    ShoppingCart,
+    Store,
+    Trash2,
+    Utensils,
+    UtensilsCrossed
 } from 'lucide-react';
-
 // Composants UI (hypothétiques selon ton setup)
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
@@ -19,9 +26,7 @@ import api from '@/src/lib/axios';
 import {useCartStore} from '@/src/store/use-cart-store';
 import {ModifierModal} from './ModifierModal';
 import {toast} from 'sonner';
-import {Category} from "../../../../types/menus";
 
-const ALL_CATEGORIES = "TOUT";
 
 const formatCurrency = (price: number | string | null | undefined) => {
     const value = typeof price === "string" ? parseFloat(price) : price;
@@ -51,7 +56,7 @@ export default function PosContent() {
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [selectedProductForModifiers, setSelectedProductForModifiers] = useState<any>(null);
     const [isModifierModalOpen, setIsModifierModalOpen] = useState(false);
-
+    const queryClient = useQueryClient();
     // 1. Charger la commande active de la table (si elle existe)
     const {data: activeOrder, isLoading: isLoadingOrder} = useQuery({
         queryKey: ['active-order', tableId],
@@ -124,22 +129,32 @@ export default function PosContent() {
     }));
 
     const handleRequestBilling = async () => {
+        // On ne filtre que les items qui n'ont pas encore été "envoyés" (si tu les gardes dans le store)
+        // Ou plus simplement : si tu vides le store après envoi, tout le contenu actuel est le "Nouveau Round"
         if (!items || items.length === 0) return toast.error("Le panier est vide");
-        const loadingToast = toast.loading(orderId ? "Mise à jour de la commande..." : "Création de la commande...");
+
+        const loadingToast = toast.loading("Envoi en cuisine...");
 
         try {
             const payload = {
                 table_id: tableId,
-                order_id: orderId, // Crucial pour le updateOrCreate côté Laravel
-                subtotal: total,
-                total: total,
+                order_id: orderId, // Récupéré depuis useCartStore via activeOrder
                 items: sanitizedItems,
+                note: "" // Optionnel: ajouter un champ note pour le chef
             };
 
-            await api.post('/api/pos/orders/request-bill', payload);
-            toast.success("Commande envoyée !", {id: loadingToast});
-            clearCart();
-            router.push('/pos/tables');
+            // Utilisation du nouvel endpoint créé côté Laravel
+            await api.post('/api/pos/orders/send-round', payload);
+
+            await Promise.all([
+                queryClient.invalidateQueries({queryKey: ['floors']}),
+                queryClient.invalidateQueries({queryKey: ['active-order', tableId]})
+            ]);
+
+            toast.success("Round envoyé !", {id: loadingToast});
+
+            clearCart(); // On vide le panier local car les items sont maintenant dans l'historique des rounds
+            // Optionnel : router.push('/pos/tables');
         } catch (error) {
             toast.error("Erreur lors de l'envoi", {id: loadingToast});
         }
@@ -161,128 +176,202 @@ export default function PosContent() {
 
     // --- RENDER HELPERS ---
 
-    const CartItemsList = () => (
-        <div className="flex flex-col h-full bg-white dark:bg-slate-900">
-            <div className="p-6 border-b flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                    <div className="bg-primary/10 p-2 rounded-xl text-primary"><ShoppingCart size={20}/></div>
-                    <h2 className="font-black uppercase italic tracking-tighter text-xl">Détails Panier</h2>
-                </div>
-                <Button variant="ghost" size="icon" onClick={clearCart}
-                        className="text-slate-400 hover:text-red-500"><Trash2 size={18}/></Button>
-            </div>
+    const CartItemsList = () => {
+        const activeRounds = activeOrder?.data?.rounds || activeOrder?.rounds || [];
 
-            <ScrollArea className="flex-1 min-h-0 px-4 [&>[data-radix-scroll-area-viewport]]:scroll-smooth">
-                {!items || items.length === 0 ? (
-                    <div className="h-64 flex flex-col items-center justify-center opacity-20 italic">
-                        <Utensils size={48} className="mb-4"/>
-                        <p className="font-bold uppercase text-[10px] tracking-widest">Le panier est vide</p>
+        return (
+            <div className="flex flex-col h-full bg-white dark:bg-slate-900">
+                {/* HEADER : Identité de la table */}
+                <div className="p-6 border-b flex justify-between items-center bg-slate-50/50 dark:bg-slate-900">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-primary p-2 rounded-xl text-white shadow-lg shadow-primary/20">
+                            <Utensils size={20}/>
+                        </div>
+                        <div>
+                            <h2 className="font-black uppercase italic tracking-tighter text-xl leading-none">Table {tableId}</h2>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em]">Suivi de commande</span>
+                        </div>
                     </div>
-                ) : (
-                    <div className="space-y-4 py-6">
-                        {items.map((item) => (
-                            <div key={item.id}
-                                 className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-[2rem] border group transition-all">
-                                <div className="flex justify-between mb-2">
-                                    <span
-                                        className="font-black text-sm uppercase italic leading-tight max-w-[70%]">{item.name}</span>
-                                    <span
-                                        className="font-black text-sm text-primary">{formatCurrency(item.price * item.qty)}</span>
+                    {orderId && (
+                        <Badge
+                            className="bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-black rounded-lg">
+                            #{activeOrder?.data?.reference?.split('-')[1]}
+                        </Badge>
+                    )}
+                </div>
+
+                <ScrollArea className="flex-1 min-h-0 px-4 [&>[data-radix-scroll-area-viewport]]:scroll-smooth">
+                    <div className="py-6 space-y-10">
+
+                        {/* --- SECTION 1 : ROUNDS DÉJÀ ENVOYÉS --- */}
+                        {activeRounds.map((round: any, index: number) => (
+                            <div key={round.id} className="relative group">
+                                {/* Ligne de séparation stylisée avec numéro de round */}
+                                <div className="absolute -top-4 left-0 right-0 flex justify-center">
+                                <span
+                                    className="bg-white dark:bg-slate-900 px-4 text-[10px] font-black text-slate-300 uppercase tracking-widest border rounded-full">
+                                    Round {round.round_number}
+                                </span>
                                 </div>
 
-                                {item.modifiers?.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mb-3">
-                                        {item.modifiers.map((m: any) => (
-                                            <span
-                                                key={m.id}
-                                                className="flex items-center gap-1 text-[9px] font-black bg-slate-200 dark:bg-slate-700 px-2 py-1 rounded-md uppercase tracking-tighter"
-                                            >
-        <span className="text-slate-500">+</span>
-                                                {m.name}
+                                <div
+                                    className="bg-white dark:bg-slate-800/40 rounded-[2rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
+                                    {/* Header du Round */}
+                                    <div
+                                        className="bg-slate-50/80 dark:bg-slate-800/80 px-5 py-3 border-b flex justify-between items-center">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">
+    Envoyé à {new Date(round.sent_at).toLocaleTimeString('fr-FR', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: false
+                                })}
+</span>
+                                        <Badge variant="outline"
+                                               className="text-[9px] font-black uppercase border-slate-200">
+                                            {round.status === 'sent' ? '⏳ En cuisine' : '✅ Servi'}
+                                        </Badge>
+                                    </div>
 
-                                                {/* On n'affiche la quantité que si elle est > 1 pour ne pas encombrer le badge gratuit/base */}
-                                                {m.quantity > 1 && (
+                                    {/* Items du Round */}
+                                    <div className="p-4 space-y-3">
+                                        {round.items.map((item: any) => (
+                                            <div key={item.id} className="flex justify-between items-start gap-4">
+                                                <div className="flex gap-3">
                                                     <span
-                                                        className="ml-1 bg-primary text-white px-1 rounded-sm text-[8px]">
-            x{m.quantity}
-          </span>
-                                                )}
-      </span>
+                                                        className="font-black text-primary text-sm italic">{item.qty}x</span>
+                                                    <div className="flex flex-col">
+                                                    <span
+                                                        className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300 leading-tight">
+                                                        {item.product?.name}
+                                                    </span>
+                                                        {/* Modificateurs s'il y en a */}
+                                                        {item.modifiers?.map((m: any) => (
+                                                            <span key={m.id}
+                                                                  className="text-[9px] text-slate-400 font-medium tracking-tight italic">
+                                                            + {m.modifier_item?.name}
+                                                        </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <span className="text-xs font-black text-slate-400">
+                                                {formatCurrency(item.total)}
+                                            </span>
+                                            </div>
                                         ))}
                                     </div>
-                                )}
-
-                                <div className="flex justify-between items-center">
-                                    <div
-                                        className="flex items-center gap-1 bg-white dark:bg-slate-950 rounded-full p-1 border shadow-sm">
-                                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full"
-                                                onClick={() => updateQty(item.id, item.qty - 1)}><Minus
-                                            size={14}/></Button>
-                                        <span className="w-8 text-center text-xs font-black">{item.qty}</span>
-                                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full"
-                                                onClick={() => updateQty(item.id, item.qty + 1)}><Plus
-                                            size={14}/></Button>
-                                    </div>
-                                    <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)}
-                                            className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></Button>
                                 </div>
                             </div>
                         ))}
-                    </div>
-                )}
-            </ScrollArea>
 
-            <div className="p-6 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 space-y-6">
-                {/* Section Calculs */}
-                <div className="space-y-3 px-2">
-                    <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
-                        <span className="text-[10px] font-black uppercase tracking-widest">Sous-total</span>
-                        <span className="text-sm font-bold tracking-tight">{formatCurrency(total)}</span>
-                    </div>
+                        {/* --- SECTION 2 : PANIER ACTUEL (ROUND EN PRÉPARATION) --- */}
+                        {items.length > 0 && (
+                            <div className="relative">
+                                <div className="absolute -top-4 left-0 right-0 flex justify-center z-10">
+                                <span
+                                    className="bg-primary text-white px-4 py-1 text-[10px] font-black uppercase tracking-[0.2em] rounded-full shadow-lg">
+                                    Nouveau Round
+                                </span>
+                                </div>
 
-                    <div className="flex justify-between items-center">
-                        <div className="flex flex-col">
-                            <span
-                                className="text-[10px] font-black uppercase tracking-widest text-primary leading-none">Montant Total</span>
-                            <span className="text-[9px] text-slate-400 font-medium italic">Taxes incluses</span>
-                        </div>
-                        <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-black italic tracking-tighter text-slate-900 dark:text-white">
-                {formatCurrency(total).split(',')[0]}
-              </span>
-                            {/* <span className="text-lg font-black italic text-primary">
-                ,{formatCurrency(total).split(',')[1]}
-              </span> */}
-                        </div>
-                    </div>
-                </div>
+                                <div
+                                    className="bg-slate-50 dark:bg-slate-800/20 p-5 rounded-[2.5rem] border-2 border-primary border-dashed pt-8 space-y-4">
+                                    {items.map((item) => (
+                                        <div key={item.id}
+                                             className="bg-white dark:bg-slate-900 p-4 rounded-[1.8rem] border shadow-sm group transition-all hover:scale-[1.02]">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div className="flex flex-col gap-1">
+                                                    <span
+                                                        className="font-black text-sm uppercase italic leading-none">{item.name}</span>
+                                                    <span
+                                                        className="text-[10px] font-bold text-primary">{formatCurrency(item.price)} / unité</span>
+                                                </div>
+                                                <span
+                                                    className="font-black text-sm">{formatCurrency(item.price * item.qty)}</span>
+                                            </div>
 
-                {/* Section Bouton - Effet Premium Dark */}
-                <Button
-                    onClick={handleRequestBilling}
-                    disabled={items.length === 0}
+                                            <div className="flex justify-between items-center">
+                                                <div
+                                                    className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-full p-1 border">
+                                                    <Button size="icon" variant="ghost"
+                                                            className="h-7 w-7 rounded-full hover:bg-white"
+                                                            onClick={() => updateQty(item.id, item.qty - 1)}><Minus
+                                                        size={12}/></Button>
+                                                    <span
+                                                        className="w-6 text-center text-xs font-black">{item.qty}</span>
+                                                    <Button size="icon" variant="ghost"
+                                                            className="h-7 w-7 rounded-full hover:bg-white"
+                                                            onClick={() => updateQty(item.id, item.qty + 1)}><Plus
+                                                        size={12}/></Button>
+                                                </div>
+                                                <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)}
+                                                        className="text-slate-300 hover:text-red-500 transition-colors">
+                                                    <Trash2 size={16}/>
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* État vide */}
+                        {(!items || items.length === 0) && activeRounds.length === 0 && (
+                            <div className="h-64 flex flex-col items-center justify-center opacity-20 italic">
+                                <Utensils size={48} className="mb-4 text-slate-400"/>
+                                <p className="font-bold uppercase text-[10px] tracking-[0.2em]">En attente de
+                                    commande</p>
+                            </div>
+                        )}
+                    </div>
+                </ScrollArea>
+
+                {/* --- FOOTER : CALCULS --- */}
+                <div
                     className={cn(
-                        "w-full h-16 rounded-[1.8rem] font-black uppercase tracking-[0.1em] transition-all relative overflow-hidden group",
-                        "bg-slate-900 dark:bg-primary text-white hover:scale-[1.02] active:scale-[0.98] shadow-2xl shadow-slate-200 dark:shadow-none",
-                        "disabled:opacity-20 disabled:grayscale"
-                    )}
-                >
-                    <div className="flex items-center justify-center gap-3">
-                        <span>Envoyer</span>
-                        <div
-                            className="h-8 w-8 bg-white/10 rounded-full flex items-center justify-center group-hover:bg-white/20 transition-colors">
-                            <ChevronRight size={18}/>
+                        "p-6 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 space-y-6 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]",
+                        "relative z-20 shrink-0 mb-safe md:mb-0" // Ajout de shrink-0 et gestion des marges
+                    )}>
+                    <div className="space-y-4 px-2">
+                        {/* Détail Cumul */}
+                        <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                            <span>Cumul Rounds</span>
+                            <span>{formatCurrency(activeOrder?.data?.amounts.subtotal || 0)}</span>
+                        </div>
+
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary leading-none block mb-1">Total Général</span>
+                                <div className="flex items-baseline gap-1">
+                    <span className="text-4xl font-black italic tracking-tighter text-slate-900 dark:text-white">
+                        {formatCurrency(total + (activeOrder?.data?.amounts.total || 0)).split(',')[0]}
+                    </span>
+                                </div>
+                            </div>
+                            <Badge className="bg-primary/10 text-primary border-none text-[10px] font-black py-2 px-4 rounded-full">
+                                {activeRounds.length + (items.length > 0 ? 1 : 0)} ROUNDS AU TOTAL
+                            </Badge>
                         </div>
                     </div>
-                </Button>
 
-                {/* Petit rappel visuel de sécurité */}
-                <p className="text-center text-[8px] font-bold uppercase tracking-widest text-slate-300 dark:text-slate-600">
-                    Vérifiez la commande avant de valider
-                </p>
+                    <Button
+                        onClick={handleRequestBilling}
+                        disabled={items.length === 0}
+                        className={cn(
+                            "w-full h-16 mb-5 rounded-[2rem] font-black uppercase tracking-[0.15em] transition-all relative overflow-hidden group",
+                            "bg-slate-900 dark:bg-primary text-white hover:scale-[1.02] active:scale-[0.98] shadow-xl shadow-slate-200 dark:shadow-none"
+                        )}
+                    >
+                        <div className=" flex items-center justify-center gap-3">
+                            <span>Lancer le Round {activeRounds.length + 1}</span>
+                            <div className="h-8 w-8 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 transition-colors">
+                                <ChevronRight size={18}/>
+                            </div>
+                        </div>
+                    </Button>
+                </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     // --- MAIN RENDER ---
 
@@ -343,7 +432,7 @@ export default function PosContent() {
                         ))
                     ) : (
                         <>
-                            {categories.map((cat:any) => {
+                            {categories.map((cat: any) => {
                                 const isActive = activeCategory === cat;
                                 return (
                                     <Button

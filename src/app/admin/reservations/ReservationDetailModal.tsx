@@ -1,22 +1,13 @@
 import React from "react";
 
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import {
-    Calendar, Clock, User, Phone,
-    Receipt, MapPin, Hash, Printer
-} from "lucide-react";
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
-import { Button } from "@/components/ui/button";
+import {Dialog, DialogContent,} from "@/components/ui/dialog";
+import {Badge} from "@/components/ui/badge";
+import {Separator} from "@/components/ui/separator";
+import {Calendar, Printer, User} from "lucide-react";
+import {format} from "date-fns";
+import {fr} from "date-fns/locale";
+import {Button} from "@/components/ui/button";
 import {formatCurrency} from "../../../lib/formatCurrency";
-import {toast} from "sonner";
 
 export function ReservationDetailModal({ open, onOpenChange, reservation ,onPayment}: any) {
     if (!reservation) return null;

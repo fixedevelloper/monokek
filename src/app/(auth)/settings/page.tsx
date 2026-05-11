@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react';
-import { load } from "@tauri-apps/plugin-store";
-import { toast } from "sonner";
-import { Save, RefreshCw } from "lucide-react";
-import { useRouter } from 'next/navigation';
+import {useEffect, useState} from 'react';
+import {load} from "@tauri-apps/plugin-store";
+import {toast} from "sonner";
+import {Save} from "lucide-react";
+import {useRouter} from 'next/navigation';
 
 export default function SettingsPage() {
     const [ip, setIp] = useState("");

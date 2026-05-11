@@ -1,23 +1,16 @@
 "use client";
 
-import React, { useState } from 'react';
-import { cn } from '@/lib/utils';
+import React, {useState} from 'react';
+import {cn} from '@/lib/utils';
 import SyncStatus from '@/components/layout/SyncStatus';
-import { 
-  Monitor, 
-  LayoutGrid, 
-  Table as TableIcon, 
-  History, 
-  Lock as LockIcon, 
-  UserCog
-} from 'lucide-react';
+import {History, Lock as LockIcon, Monitor, Table as TableIcon, UserCog} from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useUIStore } from '@/src/store/use-ui-store';
-import { Button } from '@/components/ui/button';
-import { SecurityModal } from '@/components/layout/SecurityModal';
+import {usePathname} from 'next/navigation';
+import {useUIStore} from '@/src/store/use-ui-store';
+import {Button} from '@/components/ui/button';
+import {SecurityModal} from '@/components/layout/SecurityModal';
 import api from '@/src/lib/axios';
-import { toast } from 'sonner';
+import {toast} from 'sonner';
 
 export default function POSLayout({
   children,
@@ -28,17 +21,75 @@ export default function POSLayout({
   const { setLocked } = useUIStore();
  const [isSecurityOpen, setIsSecurityOpen] = useState(false);
     const updatePin = async (newPin: string) => {
-    await api.post('/user/update-pin', { pin: newPin });
-    toast.success("Code PIN modifié !");
-  };
+        // Optionnel : Validation locale rapide avant l'appel
+        if (newPin.length !== 4) {
+            return toast.error("Le code PIN doit comporter 4 chiffres");
+        }
 
-  const updatePassword = async (oldPass: string, newPass: string) => {
-    await api.post('/user/update-password', {
-      old_password: oldPass,
-      new_password: newPass
-    });
-    toast.success("Mot de passe modifié !");
-  };
+        try {
+            const response = await api.post('api/auth/update-pin', { pin: newPin });
+
+            // Si tout est OK
+            toast.success("Code PIN modifié !");
+            return response.data;
+
+        } catch (error: any) {
+            // 1. Erreur de validation (422)
+            if (error.response?.status === 422) {
+                const firstError = Object.values(error.response.data.errors)[0] as string;
+                toast.error(firstError || "Format de PIN invalide");
+            }
+            // 2. Erreur d'authentification (401)
+            else if (error.response?.status === 401) {
+                toast.error("Session expirée, veuillez vous reconnecter");
+            }
+            // 3. Autres erreurs (500, etc.)
+            else {
+                toast.error("Impossible de modifier le PIN. Réessayez plus tard.");
+            }
+
+            // On peut relancer l'erreur si on veut la gérer dans le composant UI
+            throw error;
+        }
+    };
+
+    const updatePassword = async (oldPass: string, newPass: string) => {
+        // Validation client simple avant l'appel
+/*        if (newPass !== confirmPass) {
+            return toast.error("Les nouveaux mots de passe ne correspondent pas.");
+        }*/
+
+        if (newPass.length < 8) {
+            return toast.error("Le nouveau mot de passe doit faire au moins 8 caractères.");
+        }
+
+        try {
+            const response = await api.post('api/auth/update-password', {
+                old_password: oldPass,
+                new_password: newPass,
+              //  new_password_confirmation: confirmPass // Laravel attend ceci pour la règle 'confirmed'
+            });
+
+            toast.success("Mot de passe modifié avec succès !");
+            return response.data;
+
+        } catch (error: any) {
+            // Gestion fine des erreurs
+            const status = error.response?.status;
+            const message = error.response?.data?.message;
+
+            if (status === 422) {
+                // Erreur de validation (ex: ancien mot de passe incorrect)
+                toast.error(message || "Erreur de validation des données.");
+            } else if (status === 401) {
+                toast.error("Session expirée. Veuillez vous reconnecter.");
+            } else {
+                toast.error("Une erreur serveur est survenue.");
+            }
+
+            throw error;
+        }
+    };
   
   const navItems = [
   //  { label: 'Vente', icon: LayoutGrid, href: '/pos' },

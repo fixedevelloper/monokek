@@ -1,12 +1,12 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useState, useEffect } from "react";
-import { Product } from "@/src/types/menus";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { formatCurrency } from "@/src/lib/formatCurrency";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Check, Plus, Minus } from "lucide-react";
+import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@/components/ui/dialog";
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
+import {useEffect, useState} from "react";
+import {Product} from "@/src/types/menus";
+import {ScrollArea} from "@/components/ui/scroll-area";
+import {formatCurrency} from "@/src/lib/formatCurrency";
+import {cn} from "@/lib/utils";
+import {Button} from "@/components/ui/button";
+import {Check, Minus, Plus} from "lucide-react";
 
 export function ModifierModal({
                                 product,

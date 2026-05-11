@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
-import { ArrowLeft, FileUp, Trash2, CheckCircle2, AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
+import React, {useState} from "react";
+import {ArrowLeft, CheckCircle2, FileUp, Trash2} from "lucide-react";
+import {Button} from "@/components/ui/button";
+import {toast} from "sonner";
 import api from "@/src/lib/axios";
 import Link from "next/link";
 import Papa from "papaparse"; // Import pour le CSV
-import { useRouter } from "next/navigation";
+import {useRouter} from "next/navigation";
 import {useQueryClient} from "@tanstack/react-query";
 
 export default function ImportProductsPage() {
