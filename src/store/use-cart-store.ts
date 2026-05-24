@@ -53,7 +53,7 @@ const computeTotals = (items: CartItem[], discount = 0): Totals => {
     return acc + unitPrice * item.qty;
   }, 0);
 
-  const tax = subtotal * 0.1925;
+  const tax = 0;
   const total = subtotal + tax - discount;
 
   return { subtotal, tax, total };

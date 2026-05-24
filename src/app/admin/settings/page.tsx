@@ -37,7 +37,6 @@ export default function SettingsPage() {
     queryKey: ['printers'],
     queryFn: async () => {
       const response = await api.get('/api/admin/settings/printers');
-      // On s'assure de retourner le tableau (vérifie si ton api retourne response ou response.data)
       return response.data || response;
     }
   });
@@ -86,8 +85,8 @@ export default function SettingsPage() {
               {
                 qty: 1,
                 product: { name: "TEST IMPRESSION OK" },
-                price: 0,
-                total: 0
+                price: 100,
+                total: 100
               }
             ],
             table: { name: "TEST" },
@@ -310,7 +309,9 @@ export default function SettingsPage() {
           <TabsContent value="general">
             <Card className="border-none shadow-sm rounded-[2rem]">
               <CardContent className="p-8">
-                <div className="space-y-4">
+                <div className="space-y-6">
+
+                  {/* Nom de la boutique */}
                   <div className="grid gap-2">
                     <Label className="text-[10px] font-black uppercase ml-1">Nom de la boutique</Label>
                     <Input
@@ -319,6 +320,77 @@ export default function SettingsPage() {
                         className="h-12 bg-slate-100 border-none rounded-xl font-bold"
                     />
                   </div>
+
+                  {/* Téléphone, Adresse et Boite Postale (Sur 3 colonnes sur grand écran) */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Téléphone */}
+                    <div className="grid gap-2">
+                      <Label className="text-[10px] font-black uppercase ml-1">Téléphone</Label>
+                      <Input
+                          type="tel"
+                          value={settings.store_phone || ""}
+                          onChange={(e) => updateSetting('store_phone', e.target.value)}
+                          className="h-12 bg-slate-100 border-none rounded-xl font-bold"
+                          placeholder="+237 ..."
+                      />
+                    </div>
+
+                    {/* Adresse */}
+                    <div className="grid gap-2">
+                      <Label className="text-[10px] font-black uppercase ml-1">Adresse</Label>
+                      <Input
+                          value={settings.store_address || ""}
+                          onChange={(e) => updateSetting('store_address', e.target.value)}
+                          className="h-12 bg-slate-100 border-none rounded-xl font-bold"
+                          placeholder="Ex: Rue Joss, Douala"
+                      />
+                    </div>
+
+                    {/* Boite Postale (BP) */}
+                    <div className="grid gap-2">
+                      <Label className="text-[10px] font-black uppercase ml-1">Boite Postale (BP)</Label>
+                      <Input
+                          value={settings.store_bp || ""}
+                          onChange={(e) => updateSetting('store_bp', e.target.value)}
+                          className="h-12 bg-slate-100 border-none rounded-xl font-bold"
+                          placeholder="Ex: BP 1234"
+                      />
+                    </div>
+                  </div>
+
+                  ---
+
+                  {/* Logo de la boutique */}
+                  <div className="grid gap-2">
+                    <Label className="text-[10px] font-black uppercase ml-1">Logo de la boutique</Label>
+                    <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      {settings.store_logo && (
+                          <img
+                              src={settings.store_logo}
+                              alt="Logo preview"
+                              className="w-16 h-16 object-cover rounded-xl bg-white border shadow-sm"
+                          />
+                      )}
+                      <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              // Exemple de conversion en Base64 pour l'aperçu/stockage local
+                              // À adapter selon votre logique d'upload (S3, Cloudinary, etc.)
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                updateSetting('store_logo', reader.result as string);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="h-12 bg-white border-slate-200 rounded-xl file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer pt-2"
+                      />
+                    </div>
+                  </div>
+
                 </div>
               </CardContent>
             </Card>

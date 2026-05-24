@@ -3,7 +3,7 @@
 import React, {useState} from 'react';
 import {cn} from '@/lib/utils';
 import SyncStatus from '@/components/layout/SyncStatus';
-import {History, LayoutGrid, Lock as LockIcon, Monitor, UserCog} from 'lucide-react';
+import {Beer, History, LayoutGrid, Lock as LockIcon, Monitor, UserCog} from 'lucide-react';
 import Link from 'next/link';
 import {usePathname} from 'next/navigation';
 import {useUIStore} from '@/src/store/use-ui-store';
@@ -94,6 +94,11 @@ export default function POSLayout({
   };
   const navItems = [
     { label: 'Vente', icon: LayoutGrid, href: '/pos/sales/order' },
+    {
+      label: 'Comptoir Bar',
+      icon: Beer,
+      href: '/pos/sales/comptoir'
+    },
     { label: 'Historiques', icon: History, href: '/pos/sales/history' },
   ];
 
