@@ -13,13 +13,12 @@ import {Order, OrderStatus} from '@/src/types/menus';
 import api from '@/src/lib/axios';
 import {useUIStore} from '@/src/store/use-ui-store';
 import {toast} from 'sonner';
-import {usePrint} from '@/src/hooks/use-print';
 import {useCashStore} from '@/src/store/use-cash-store';
 import CashOpenModal from '../CashOpenModal';
 import {useRouter} from 'next/navigation';
 import {useEcho} from '@/src/hooks/useEcho';
 import { Layers, Clock, User } from 'lucide-react';
-import {Round} from "../../../../types/menus";
+import {OrderItem, Round} from "../../../../types/menus";
 
 export default function PosSalesPage() {
     const [orders, setOrders] = useState<Order[]>([]);
@@ -37,31 +36,63 @@ export default function PosSalesPage() {
 
     const [previewData, setPreviewData] = useState<any>(null);
     const echo = useEcho();
+
     useEffect(() => {
         if (!echo) return;
 
         const channel = echo.channel('orders');
 
-        // 1. Écouter les nouvelles commandes
+        // 1. Écouter les nouvelles commandes (ou nouveaux rounds sur commande existante)
         channel.listen('.order.created', (newOrder: any) => {
-            setOrders(prev => [newOrder, ...prev]);
-            toast.success("Nouvelle commande !");
+            setOrders(prev => {
+                // On vérifie si la commande existe déjà dans la liste de la caisse
+                const exists = prev.some(order => order.id === newOrder.id);
+
+                if (exists) {
+                    console.log(`[Caisse] Mise à jour de la commande existante #${newOrder.id} (Nouveau Round)`);
+                    console.log(newOrder);
+                    // Si elle existe, on la met à jour avec les nouvelles données/articles fusionnés du backend
+                    return prev.map(order => order.id === newOrder.id ? newOrder : order);
+                }
+
+                console.log(`[Caisse] Ajout d'une toute nouvelle commande #${newOrder.id}`);
+                // 👉 B. SYNCHRONISATION DU DÉTAIL : Si la commande ouverte est celle qui a reçu le round
+                setSelectedSale(currentSelected => {
+                    if (currentSelected && currentSelected.id === newOrder.id) {
+                        console.log(`[Caisse] Synchronisation du détail pour la commande #${newOrder.id}`);
+                        return newOrder; // On remplace directement par la nouvelle version avec ses nouveaux rounds
+                    }
+                    return currentSelected;
+                });
+                return [newOrder, ...prev];
+            });
+
+            toast.success(`Commande Table ${newOrder.table?.name || 'N/A'} mise à jour !`);
         });
 
-        // 2. Écouter les mises à jour de statut
+        // 2. Écouter les mises à jour de statut (inchangé mais propre)
         channel.listen('.order.updated', (updatedOrder: any) => {
-            console.log("Mise à jour reçue:", updatedOrder);
+            console.log("Mise à jour statut reçue :", updatedOrder);
 
-            // On remplace l'ancienne version de la commande par la nouvelle dans la liste
             setOrders(prev => prev.map(order =>
                 order.id === updatedOrder.id ? updatedOrder : order
             ));
-
+            setSelectedSale(currentSelected => {
+                if (currentSelected && currentSelected.id === updatedOrder.id) {
+                    console.log(`[Caisse] Synchronisation du détail pour la commande #${updatedOrder.id}`);
+                    return updatedOrder; // On remplace directement par la nouvelle version avec ses nouveaux rounds
+                }
+                return currentSelected;
+            });
             toast.info(`Commande #${updatedOrder.reference} : ${updatedOrder.status_label}`);
         });
 
-        return () => echo.leaveChannel('orders');
-    }, [echo]);
+        // Nettoyage des écouteurs pour éviter les fuites de mémoire sans détruire le canal global
+        return () => {
+            channel.stopListening('.order.created');
+            channel.stopListening('.order.updated');
+        };
+    }, [echo,setSelectedSale]);
 
     const handlePreviewCloture = async () => {
         setLoading(true);
@@ -327,7 +358,7 @@ export default function PosSalesPage() {
 
                                             {/* Items du Round */}
                                             <div className="space-y-4 pl-4">
-                                                {round.items?.map((item, idx) => (
+                                                {round.items?.map((item:OrderItem, idx) => (
                                                     <div key={idx} className="flex justify-between items-start group">
                                                         <div className="flex flex-col">
                                                             <div className="flex items-center gap-2">

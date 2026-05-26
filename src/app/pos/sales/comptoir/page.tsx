@@ -39,7 +39,7 @@ export default function ComptoirPage() {
     const [tickets, setTickets] = useState<KitchenTicket[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    // 1. Fetch des tickets
+    // 1. Fetch des tickets (Stable avec useCallback)
     const fetchTickets = useCallback(async () => {
         if (!stationId) return;
         try {
@@ -58,21 +58,36 @@ export default function ComptoirPage() {
         fetchTickets();
     }, [fetchTickets]);
 
-    // 2. Écoute temps réel via Laravel Echo
+    // 2. Écoute temps réel CORRIGÉE sans déconnexion agressive
     useEffect(() => {
         if (!echo || !stationId) return;
 
-        // On écoute le canal spécifique à la station
-        const channel = echo.channel(`kitchen.station.${stationId}`)
-            .listen('.ticket.created', (newTicket: KitchenTicket) => {
-                setTickets(prev => [newTicket, ...prev]);
-                // Son de notification (Optionnel: ajouter le fichier dans /public/sounds/)
-                const audio = new Audio('/sounds/new-order.mp3');
-                audio.play().catch(() => {});
-                toast.info(`Nouveau ticket : Table ${newTicket.table}`);
+        const channelName = `kitchen.station.${stationId}`;
+        console.log(`[Comptoir] 🎧 Abonnement au canal : ${channelName}`);
+
+        const channel = echo.channel(channelName);
+
+        // On attache l'écouteur d'événement
+        channel.listen('.ticket.created', (newTicket: KitchenTicket) => {
+            console.log("[Comptoir] 🔔 Nouveau ticket reçu via WS :", newTicket);
+            setTickets(prev => {
+                // Éviter les doublons si le polling et le WS arrivent en même temps
+                if (prev.some(t => t.id === newTicket.id)) return prev;
+                return [newTicket, ...prev];
             });
 
-        return () => echo.leaveChannel(`kitchen.station.${stationId}`);
+            // Son de notification
+            const audio = new Audio('/sounds/new-order.mp3');
+            audio.play().catch(() => {});
+            toast.info(`Nouveau ticket : Table ${newTicket.table}`);
+        });
+
+        // NETTOYAGE SUBTIL : On arrête juste d'écouter l'événement spécifique
+        // au lieu de forcer un "leaveChannel" global qui secoue la connexion Reverb
+        return () => {
+            console.log(`[Comptoir] 🎚️ Désactivation de l'écouteur sur : ${channelName}`);
+            channel.stopListening('.ticket.created');
+        };
     }, [echo, stationId]);
 
     // 3. Mise à jour du statut
@@ -83,12 +98,9 @@ export default function ComptoirPage() {
             });
 
             if (nextStatus === 'ready') {
-                // Si c'est prêt, on le retire de la liste après un court délai
-                // pour garder l'écran de cuisine propre
                 setTickets(prev => prev.filter(t => t.id !== ticketId));
                 toast.success("Commande prête à servir !");
             } else {
-                // Sinon on met juste à jour le statut localement (ex: Preparing)
                 setTickets(prev => prev.map(t =>
                     t.id === ticketId ? { ...t, status: nextStatus as any } : t
                 ));
@@ -97,7 +109,6 @@ export default function ComptoirPage() {
             toast.error("Action impossible");
         }
     };
-
     if (!stationId) {
         return (
             <div className="h-screen flex flex-col items-center justify-center gap-4 bg-slate-950 text-white">

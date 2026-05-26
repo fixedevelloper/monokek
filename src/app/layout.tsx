@@ -16,6 +16,7 @@ import {LicenseGuard} from "../../components/layout/LicenseGuard";
 import {usePrint} from "../hooks/use-print";
 import {useEcho} from "../hooks/useEcho";
 import {getLocalSettings} from "../lib/storage";
+import {EchoProvider} from "../providers/EchoContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -102,6 +103,7 @@ export default function RootLayout({
         <QueryProvider>
           <LicenseGuard>
           <ThemeProvider attribute="class" defaultTheme="light">
+            <EchoProvider>
             <TooltipProvider>
 
               {/* On n'affiche le contenu que lorsque la vérification IP est faite */}
@@ -126,6 +128,7 @@ export default function RootLayout({
               <PaymentModal />
 
             </TooltipProvider>
+            </EchoProvider>
           </ThemeProvider>
           </LicenseGuard>
           <Toaster position="top-right" />

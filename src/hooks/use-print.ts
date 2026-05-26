@@ -72,9 +72,6 @@ export const usePrint = () => {
   /**
    * Structure pour le Ticket de Caisse Client (Facture)
    */
-  /**
-   * Structure pour le Ticket de Caisse Client (Facture)
-   */
   const generateReceiptSections = (order: any) => {
     const store = settings || order.store || {};
     const sections: any[] = [];

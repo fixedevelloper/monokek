@@ -3,7 +3,7 @@
 import React, {useState} from 'react';
 import Link from 'next/link';
 import {
-  BarChart3,
+  BarChart3, Briefcase,
   CalendarCheck,
   History,
   LayoutDashboard,
@@ -97,6 +97,13 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: History, // Garde 'History' pour l'historique des flux
     href: "/admin/stock/history",
     color: "bg-amber-600",
+  },
+  {
+    title: "Comptabilité",
+    description: "Journaux et exports comptables",
+    icon: Briefcase, // ou Calculator, Briefcase
+    href: "/admin/accounting",
+    color: "bg-blue-600", // Optionnel : change le rose pour un ton plus "finance"
   },
   {
     title: "Paramètres",

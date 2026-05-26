@@ -1,48 +1,44 @@
+"use client";
+
 import React from "react";
-import {
-  Dialog, DialogContent
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
   X, Printer, Hash, User, User2,
-  Calendar, Download, Clock
+  Download, Clock
 } from "lucide-react";
-import { format } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useExport } from "../../../hooks/useExport";
 
 // --- Interfaces ---
 interface OrderDetailsModalProps {
-  order: any; // Idéalement, utilise ton interface Order
+  order: any;
   isOpen: boolean;
   onClose: () => void;
 }
 
 export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalProps) {
+  const { exportToPDF, isExporting } = useExport();
+
   if (!order) return null;
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('fr-CM', {
-      style: 'currency',
-      currency: 'XAF'
-    }).format(amount).replace('FCFA', '').trim() + ' FCFA';
-  };
-
-  const printTicket = (order: any) => {
+  // Modifié pour sortir un vrai format ticket de caisse 80mm
+  const handlePrintThermal = (order: any) => {
     const doc = new jsPDF({ unit: "mm", format: [80, 200] });
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Header du ticket
+    // En-tête du ticket (MonoKek / RestoPro Style)
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.text("MON RESTO", pageWidth / 2, 10, { align: "center" });
     doc.setFontSize(8);
     doc.text(`REF: ${order.reference}`, pageWidth / 2, 15, { align: "center" });
 
-    // On aplatit les rounds pour avoir une liste unique d'articles
+    // Aplatissement des rounds pour récupérer la liste unique des articles consommés
     const allItems = order.rounds?.flatMap((r: any) => r.items || []) || [];
 
     autoTable(doc, {
@@ -51,19 +47,38 @@ export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalP
       head: [['Qté', 'Désignation', 'Total']],
       body: allItems.map((i: any) => [
         i.qty,
-        i.product.name,
-        i.total
+        i.product?.name || i.name,
+        `${new Intl.NumberFormat('fr-CM').format(i.total)} F`
       ]),
       styles: { fontSize: 7, cellPadding: 1 },
+      headStyles: { fillColor: [15, 23, 42] } // Couleur ardoise/slate-900 uniforme
     });
 
     const finalY = (doc as any).lastAutoTable.finalY + 10;
     doc.setFontSize(10);
-    doc.text(`TOTAL: ${order.amounts.total} FCFA`, pageWidth - 5, finalY, { align: "right" });
+    doc.text(`TOTAL: ${order.amounts?.formatted_total || order.amounts?.total}`, pageWidth - 5, finalY, { align: "right" });
 
     doc.autoPrint();
     window.open(doc.output('bloburl'), '_blank');
   };
+
+  // Export PDF classique A4 via ton hook personnalisé
+  const handleExportA4 = (order: any) => {
+    const allItems = order.rounds?.flatMap((r: any) => r.items || []) || [];
+    const columns = ['Qté', 'Désignation', 'Total'];
+    const exportData = allItems.map((i: any) => [
+      i.qty,
+      i.product?.name || i.name,
+      i.total
+    ]);
+
+    exportToPDF({
+      title: "Détail commande",
+      subtitle: `Réf ${order.reference}`,
+      filename: `commande_${order.reference}`,
+      columns: columns
+    }, exportData);
+  }; // <-- L'accolade en trop était placée juste ici !
 
   return (
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -90,8 +105,8 @@ export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalP
                       {order.status}
                     </Badge>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                        {order.date} • {order.created_at}
-                                    </span>
+                    {order.date} • {order.created_at}
+                  </span>
                   </div>
                   <h2 className="text-3xl font-black uppercase italic tracking-tighter">
                     {order.reference}
@@ -129,30 +144,30 @@ export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalP
 
                         <div className="flex items-center justify-between mb-4">
                           <div className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">
-                                                <span className="font-black text-[10px] uppercase text-primary">
-                                                    Round #{round.round_number}
-                                                </span>
+                        <span className="font-black text-[10px] uppercase text-primary">
+                          Round #{round.round_number}
+                        </span>
                           </div>
                           <span className="text-[10px] font-bold text-slate-400 italic">
-                                                {round.sent_at_formatted || 'Envoyé'}
-                                            </span>
+                        {round.sent_at_formatted || 'Envoyé'}
+                      </span>
                         </div>
 
                         <div className="grid gap-3">
-                          {round.items?.map((item: any) => (
-                              <div key={item.id} className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 hover:shadow-md transition-shadow">
+                          {round.items?.map((item: any, itemIdx: number) => (
+                              <div key={item.id || itemIdx} className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 hover:shadow-md transition-shadow">
                                 <div className="flex gap-4 items-center">
                                   <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center font-black text-xs text-primary">
                                     {item.qty}
                                   </div>
                                   <div>
-                                    <p className="font-black text-sm uppercase leading-tight tracking-tight">{item.product.name}</p>
+                                    <p className="font-black text-sm uppercase leading-tight tracking-tight">{item.product?.name || item.name}</p>
                                     {item.modifiers && item.modifiers.length > 0 && (
                                         <div className="flex flex-wrap gap-2 mt-1">
                                           {item.modifiers.map((mod: any, i: number) => (
                                               <span key={i} className="text-[9px] font-bold text-orange-500 uppercase">
-                                                                            + {mod.modifier_item?.name || mod.name}
-                                                                        </span>
+                                      + {mod.modifier_item?.name || mod.name}
+                                    </span>
                                           ))}
                                         </div>
                                     )}
@@ -179,14 +194,18 @@ export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalP
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Personnel & Lieu</h4>
                   <div className="grid grid-cols-1 gap-4">
                     <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl">
-                      <div className="h-10 w-10 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm"><User size={18} className="text-primary"/></div>
+                      <div className="h-10 w-10 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
+                        <User size={18} className="text-primary"/>
+                      </div>
                       <div>
                         <p className="text-[8px] font-black uppercase text-slate-400">Serveur</p>
-                        <p className="text-sm font-bold tracking-tight">{order.waiter?.name}</p>
+                        <p className="text-sm font-bold tracking-tight">{order.waiter?.name || 'N/A'}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl">
-                      <div className="h-10 w-10 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm"><User2 size={18} className="text-primary"/></div>
+                      <div className="h-10 w-10 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
+                        <User2 size={18} className="text-primary"/>
+                      </div>
                       <div>
                         <p className="text-[8px] font-black uppercase text-slate-400">Caissier</p>
                         <p className="text-sm font-bold tracking-tight">{order.cashier?.name || 'En attente'}</p>
@@ -200,28 +219,32 @@ export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalP
                 <div className="space-y-3">
                   <div className="flex justify-between items-center text-slate-400">
                     <span className="text-[10px] font-black uppercase tracking-widest">Sous-total</span>
-                    <span className="font-bold text-sm">{new Intl.NumberFormat('fr-CM').format(order.amounts.subtotal)} F</span>
+                    <span className="font-bold text-sm">
+                    {new Intl.NumberFormat('fr-CM').format(order.amounts?.subtotal || 0)} F
+                  </span>
                   </div>
                   <div className="flex justify-between items-end pt-2">
                     <span className="font-black uppercase italic text-xl tracking-tighter">Total Net</span>
                     <span className="text-4xl font-black text-primary tracking-tighter italic leading-none">
-                                        {order.amounts.formatted_total}
-                                    </span>
+                    {order.amounts?.formatted_total || `${order.amounts?.total || 0} XAF`}
+                  </span>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 pt-4">
                   <Button
-                      onClick={() => printTicket(order)}
+                      onClick={() => handlePrintThermal(order)}
                       className="h-16 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black uppercase text-[11px] tracking-[0.15em] gap-3 shadow-xl transition-all active:scale-95"
                   >
                     <Printer size={20} /> Imprimer le Ticket
                   </Button>
                   <Button
+                      disabled={isExporting}
+                      onClick={() => handleExportA4(order)}
                       variant="outline"
                       className="h-14 rounded-2xl border-2 font-black uppercase text-[10px] tracking-widest gap-2"
                   >
-                    <Download size={18} /> Télécharger
+                    <Download size={18} /> {isExporting ? "Téléchargement..." : "Télécharger"}
                   </Button>
                 </div>
               </div>

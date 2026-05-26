@@ -3,7 +3,6 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {Calendar as CalendarIcon, Eye, Loader2, ReceiptText, Search} from 'lucide-react';
 import {format} from "date-fns";
 import {fr} from "date-fns/locale";
-// Tes imports UI...
 import {Input} from "@/components/ui/input";
 import {Button} from "@/components/ui/button";
 import {Calendar} from "@/components/ui/calendar";
