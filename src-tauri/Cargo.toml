@@ -1,7 +1,7 @@
 [package]
-name = "mono-kep-tauri"
+name = "mono-kep"
 version = "0.1.0"
-description = "A Tauri App"
+description = "Application de gestion de restaurant"
 authors = ["you"]
 edition = "2021"
 

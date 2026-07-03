@@ -57,7 +57,7 @@ export default function RootLayout({
     const interval = setInterval(() => {
       console.log("[Printer] 🔍 Vérification périodique des jobs en attente...");
       checkPendingJobs();
-    }, 60000);
+    }, 1000);
 
     return () => {
       if (channel) channel.stopListening('.PrintJobCreated');

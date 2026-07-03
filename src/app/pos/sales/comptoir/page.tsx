@@ -20,7 +20,7 @@ interface KitchenTicket {
     id: number;
     reference: string;
     table: string;
-    status: 'pending' | 'preparing' | 'ready';
+    status: 'pending' | 'preparing' | 'ready'|  'served';
     createdAt: string;
     round_number: number;
     items: Array<{
@@ -93,11 +93,11 @@ export default function ComptoirPage() {
     // 3. Mise à jour du statut
     const handleStatusChange = async (ticketId: number, nextStatus: string) => {
         try {
-            await api.patch(`/api/kitchen/tickets/${ticketId}/status`, {
+            await api.patch(`/api/kitchen/tickets-direct/${ticketId}/status`, {
                 status: nextStatus
             });
 
-            if (nextStatus === 'ready') {
+            if (nextStatus === 'served') {
                 setTickets(prev => prev.filter(t => t.id !== ticketId));
                 toast.success("Commande prête à servir !");
             } else {
@@ -215,7 +215,7 @@ export default function ComptoirPage() {
                                     </Button>
                                 ) : (
                                     <Button
-                                        onClick={() => handleStatusChange(ticket.id, 'ready')}
+                                        onClick={() => handleStatusChange(ticket.id, 'served')}
                                         className="w-full h-14 rounded-[1.5rem] bg-orange-500 hover:bg-orange-600 text-white font-black uppercase text-xs tracking-widest gap-3 animate-pulse shadow-lg shadow-orange-500/20"
                                     >
                                         <CheckCircle2 size={20} /> Terminer
