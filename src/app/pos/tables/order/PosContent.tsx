@@ -186,7 +186,7 @@ export default function PosContent() {
             price: item.price,
             modifiers: item.modifiers?.map(m => ({
                 modifier_item_id: m.id,
-                price: parseFloat(m.price),
+                price: Number(m.price),
                 quantity: m.quantity || 1
             })) || []
         }));
