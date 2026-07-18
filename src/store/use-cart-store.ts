@@ -3,182 +3,183 @@ import { persist } from 'zustand/middleware';
 
 
 export interface CartItem {
-  id: string;
-  product_id: number;
-  name: string;
-  variant_id?: number;
-  variant_name?: string;
-  qty: number;
-  price: number;
-  modifiers: Array<{
-    id: number;
+    id: string;
+    product_id: number;
     name: string;
+    variant_id?: number;
+    variant_name?: string;
+    qty: number;
     price: number;
-    quantity: number;
-  }>;
-  instructions?: string;
+    modifiers: Array<{
+        id: number;
+        name: string;
+        price: number;
+        quantity: number;
+    }>;
+    instructions?: string;
 }
 
 type Totals = {
-  subtotal: number;
-  tax: number;
-  total: number;
+    subtotal: number;
+    tax: number;
+    total: number;
 };
 
 interface CartState {
-  tableId: number | null;
-  orderId: number | null;
-  items: CartItem[];
-  subtotal: number;
-  tax: number;
-  discount: number;
-  total: number;
+    tableId: number | null;
+    orderId: number | null;
+    items: CartItem[];
+    subtotal: number;
+    tax: number;
+    discount: number;
+    total: number;
 
-  initCartForTable: (tableId: number, existingOrder?: any) => void;
-  addItem: (item: Omit<CartItem, 'id'>) => void;
-  removeItem: (id: string) => void;
-  updateQty: (id: string, qty: number) => void;
-  applyDiscount: (amount: number) => void;
-  clearCart: () => void;
+    // Ne réinitialise le panier local QUE si on change réellement de table.
+    // Ne prend plus existingOrder en paramètre : cette fonction ne doit jamais
+    // dépendre de la structure de la commande serveur (rounds imbriqués, etc.),
+    // seulement décider "même table ou pas".
+    initCartForTable: (tableId: number) => void;
+
+    // Synchronise juste l'orderId courant avec le serveur (ex: après création
+    // d'une commande sur envoi du 1er round). Ne touche JAMAIS à items/totaux :
+    // le panier local représente uniquement le round en cours de composition,
+    // pas les rounds déjà envoyés (ceux-là viennent de orderData.rounds côté UI).
+    syncOrderId: (orderId: number | null) => void;
+
+    addItem: (item: Omit<CartItem, 'id'>) => void;
+    removeItem: (id: string) => void;
+    updateQty: (id: string, qty: number) => void;
+    applyDiscount: (amount: number) => void;
+    clearCart: () => void;
 }
 
-// ✅ Fonction corrigée
 const computeTotals = (items: CartItem[], discount = 0): Totals => {
-  const subtotal = items.reduce((acc, item) => {
-    const modifiersTotal = item.modifiers.reduce((mAcc, m) => {
-      return mAcc + (Number(m.price) * (m.quantity || 1));
+    const subtotal = items.reduce((acc, item) => {
+        const modifiersTotal = item.modifiers.reduce((mAcc, m) => {
+            return mAcc + (Number(m.price) * (m.quantity || 1));
+        }, 0);
+
+        const unitPrice = Number(item.price) + modifiersTotal;
+        return acc + unitPrice * item.qty;
     }, 0);
 
-    const unitPrice = Number(item.price) + modifiersTotal;
-    return acc + unitPrice * item.qty;
-  }, 0);
+    const tax = 0;
+    const total = subtotal + tax - discount;
 
-  const tax = 0;
-  const total = subtotal + tax - discount;
-
-  return { subtotal, tax, total };
+    return { subtotal, tax, total };
 };
 
 export const useCartStore = create<CartState>()(
     persist(
         (set, get) => ({
-          tableId: null,
-          orderId: null,
-          items: [],
-          subtotal: 0,
-          tax: 0,
-          discount: 0,
-          total: 0,
+            tableId: null,
+            orderId: null,
+            items: [],
+            subtotal: 0,
+            tax: 0,
+            discount: 0,
+            total: 0,
 
-          initCartForTable: (tableId, existingOrder = null) => {
-            if (existingOrder && existingOrder.items) {
-              const loadedItems = existingOrder.items.map((item: any) => ({
-                id: `${item.product_id}-${item.variant_id || 0}-${item.modifiers?.map((m: any) => m.modifier_item_id).sort().join(',') || ''}`,
-                product_id: item.product_id || item.product?.id,
-                name: item.product?.name || "Produit",
-                qty: item.qty || 1,
-                price: parseFloat(item.price || 0),
-                modifiers: item.modifiers?.map((m: any) => ({
-                  id: m.modifier_item_id,
-                  name: m.modifier_item?.name || "Supplément",
-                  price: parseFloat(m.price || 0),
-                  quantity: m.quantity || 1
-                })) || [],
-              }));
+            initCartForTable: (tableId) => {
+                const current = get();
 
-              const discount = 0;
+                // Même table qu'avant (ex: refetch en arrière-plan, retour sur la page,
+                // événement temps réel) -> on ne touche à RIEN. Le panier en cours de
+                // composition doit survivre à un refetch de la commande active.
+                if (current.tableId === tableId) {
+                    return;
+                }
 
-              set({
-                tableId,
-                orderId: existingOrder.id,
-                items: loadedItems,
-                discount,
-                ...computeTotals(loadedItems, discount)
-              });
-            } else {
-              set({
-                tableId,
-                orderId: existingOrder?.id || null,
-                items: [],
-                subtotal: 0,
-                tax: 0,
-                discount: 0,
-                total: 0
-              });
-            }
-          },
+                // Changement réel de table -> on repart sur un panier propre.
+                // orderId sera resynchronisé juste après via syncOrderId().
+                set({
+                    tableId,
+                    orderId: null,
+                    items: [],
+                    subtotal: 0,
+                    tax: 0,
+                    discount: 0,
+                    total: 0,
+                });
+            },
 
-          addItem: (newItem) => {
-            const { items, discount } = get();
+            syncOrderId: (orderId) => {
+                const current = get();
+                if (current.orderId === orderId) return; // évite un set() inutile
+                set({ orderId });
+            },
 
-            const modifierKey = newItem.modifiers
-                .map(m => `${m.id}-q${m.quantity}`)
-                .sort()
-                .join('|');
+            addItem: (newItem) => {
+                const { items, discount } = get();
 
-            const uniqueId = `${newItem.product_id}-${modifierKey}`;
-            const existingItem = items.find(i => i.id === uniqueId);
+                const modifierKey = newItem.modifiers
+                    .map(m => `${m.id}-q${m.quantity}`)
+                    .sort()
+                    .join('|');
 
-            let newItems;
+                const uniqueId = `${newItem.product_id}-${modifierKey}`;
+                const existingItem = items.find(i => i.id === uniqueId);
 
-            if (existingItem) {
-              newItems = items.map(i =>
-                  i.id === uniqueId ? { ...i, qty: i.qty + 1 } : i
-              );
-            } else {
-              newItems = [...items, { ...newItem, id: uniqueId }];
-            }
+                let newItems;
 
-            set({
-              items: newItems,
-              ...computeTotals(newItems, discount)
-            });
-          },
+                if (existingItem) {
+                    newItems = items.map(i =>
+                        i.id === uniqueId ? { ...i, qty: i.qty + 1 } : i
+                    );
+                } else {
+                    newItems = [...items, { ...newItem, id: uniqueId }];
+                }
 
-          updateQty: (id, qty) => {
-            const { items, discount } = get();
+                set({
+                    items: newItems,
+                    ...computeTotals(newItems, discount)
+                });
+            },
 
-            const newItems =
-                qty <= 0
-                    ? items.filter(i => i.id !== id)
-                    : items.map(i => i.id === id ? { ...i, qty } : i);
+            updateQty: (id, qty) => {
+                const { items, discount } = get();
 
-            set({
-              items: newItems,
-              ...computeTotals(newItems, discount)
-            });
-          },
+                const newItems =
+                    qty <= 0
+                        ? items.filter(i => i.id !== id)
+                        : items.map(i => i.id === id ? { ...i, qty } : i);
 
-          removeItem: (id) => {
-            const { items, discount } = get();
-            const newItems = items.filter(i => i.id !== id);
+                set({
+                    items: newItems,
+                    ...computeTotals(newItems, discount)
+                });
+            },
 
-            set({
-              items: newItems,
-              ...computeTotals(newItems, discount)
-            });
-          },
+            removeItem: (id) => {
+                const { items, discount } = get();
+                const newItems = items.filter(i => i.id !== id);
 
-          applyDiscount: (amount: number) => {
-            const { items } = get();
+                set({
+                    items: newItems,
+                    ...computeTotals(newItems, discount)
+                });
+            },
 
-            set({
-              discount: amount,
-              ...computeTotals(items, amount)
-            });
-          },
+            applyDiscount: (amount: number) => {
+                const { items } = get();
 
-          clearCart: () =>
-              set({
-                items: [],
-                subtotal: 0,
-                tax: 0,
-                discount: 0,
-                total: 0
-              }),
+                set({
+                    discount: amount,
+                    ...computeTotals(items, amount)
+                });
+            },
+
+            clearCart: () =>
+                set({
+                    items: [],
+                    subtotal: 0,
+                    tax: 0,
+                    discount: 0,
+                    total: 0
+                }),
         }),
         {
-          name: 'mono-kek-cart-storage',
+            name: 'mono-kek-cart-storage',
         }
     )
 );

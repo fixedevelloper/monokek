@@ -31,7 +31,7 @@ export default function RootLayout({
   const { processPrintJob, checkPendingJobs } = usePrint();
   const echo = useEcho();
 
-  useEffect(() => {
+/*  useEffect(() => {
     let channel: any = null;
 
     const setupRealtimePrinting = async () => {
@@ -63,7 +63,7 @@ export default function RootLayout({
       if (channel) channel.stopListening('.PrintJobCreated');
       clearInterval(interval);
     };
-  }, [echo]);
+  }, [echo]);*/
   useEffect(() => {
     const checkConfig = async () => {
       const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;

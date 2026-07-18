@@ -18,7 +18,7 @@ import CashOpenModal from '../CashOpenModal';
 import {useRouter} from 'next/navigation';
 import {useEcho} from '@/src/hooks/useEcho';
 import { Layers, Clock, User } from 'lucide-react';
-import {OrderItem, Round} from "../../../../types/menus";
+import {OrderItem} from "../../../../types/menus";
 
 export default function PosSalesPage() {
     const [orders, setOrders] = useState<Order[]>([]);
@@ -37,72 +37,75 @@ export default function PosSalesPage() {
     const [previewData, setPreviewData] = useState<any>(null);
     const echo = useEcho();
 
+    // Merge/insertion générique d'une commande dans la liste + sync du détail ouvert,
+    // utilisée par les 3 events (order.created, order.updated, round.added) pour éviter
+    // que la logique de sync soit dupliquée (et donc désynchronisée comme avant).
+    const upsertOrderEverywhere = (updatedOrder: any) => {
+        if (!updatedOrder?.id) return;
+
+        setOrders(prev => {
+            const exists = prev.some(order => order.id === updatedOrder.id);
+            if (exists) {
+                return prev.map(order => order.id === updatedOrder.id ? updatedOrder : order);
+            }
+            return [updatedOrder, ...prev];
+        });
+
+        // Sync du détail ouvert, QUEL QUE SOIT le cas (nouvelle commande ou commande
+        // existante mise à jour) : si l'utilisateur a ce ticket ouvert, il doit voir
+        // le nouveau round apparaître sans avoir à recliquer sur la ligne.
+        setSelectedSale(currentSelected => {
+            if (currentSelected && currentSelected.id === updatedOrder.id) {
+                return updatedOrder;
+            }
+            return currentSelected;
+        });
+    };
+
     useEffect(() => {
         if (!echo) return;
 
         const channel = echo.channel('orders');
 
-        // 1. Écouter les nouvelles commandes (ou nouveaux rounds sur commande existante)
+        // 1. Nouvelle commande créée
         channel.listen('.order.created', (newOrder: any) => {
-            setOrders(prev => {
-                // On vérifie si la commande existe déjà dans la liste de la caisse
-                const exists = prev.some(order => order.id === newOrder.id);
-
-                if (exists) {
-                    console.log(`[Caisse] Mise à jour de la commande existante #${newOrder.id} (Nouveau Round)`);
-                    console.log(newOrder);
-                    // Si elle existe, on la met à jour avec les nouvelles données/articles fusionnés du backend
-                    return prev.map(order => order.id === newOrder.id ? newOrder : order);
-                }
-
-                console.log(`[Caisse] Ajout d'une toute nouvelle commande #${newOrder.id}`);
-                // 👉 B. SYNCHRONISATION DU DÉTAIL : Si la commande ouverte est celle qui a reçu le round
-                setSelectedSale(currentSelected => {
-                    if (currentSelected && currentSelected.id === newOrder.id) {
-                        console.log(`[Caisse] Synchronisation du détail pour la commande #${newOrder.id}`);
-                        return newOrder; // On remplace directement par la nouvelle version avec ses nouveaux rounds
-                    }
-                    return currentSelected;
-                });
-                return [newOrder, ...prev];
-            });
-
-            toast.success(`Commande Table ${newOrder.table?.name || 'N/A'} mise à jour !`);
+            upsertOrderEverywhere(newOrder);
+            toast.success(`Commande Table ${newOrder.table?.name || 'N/A'} créée !`);
         });
 
-        // 2. Écouter les mises à jour de statut (inchangé mais propre)
-        channel.listen('.order.updated', (updatedOrder: any) => {
-            console.log("Mise à jour statut reçue :", updatedOrder);
+        // 2. Round ajouté à une commande déjà existante (RoundAddedToOrder côté backend)
+        // Payload différent de order.created/order.updated : { order: {...}, round: {...} }
+        channel.listen('.round.added', (payload: any) => {
+            const updatedOrder = payload?.order;
+            if (!updatedOrder) return;
 
-            setOrders(prev => prev.map(order =>
-                order.id === updatedOrder.id ? updatedOrder : order
-            ));
-            setSelectedSale(currentSelected => {
-                if (currentSelected && currentSelected.id === updatedOrder.id) {
-                    console.log(`[Caisse] Synchronisation du détail pour la commande #${updatedOrder.id}`);
-                    return updatedOrder; // On remplace directement par la nouvelle version avec ses nouveaux rounds
-                }
-                return currentSelected;
-            });
+            upsertOrderEverywhere(updatedOrder);
+
+            const roundNumber = payload?.round?.round_number;
+            toast.success(
+                `Round ${roundNumber ?? ''} ajouté — Table ${updatedOrder.table?.name || 'N/A'}`.trim()
+            );
+        });
+
+        // 3. Mise à jour de statut
+        channel.listen('.order.updated', (updatedOrder: any) => {
+            upsertOrderEverywhere(updatedOrder);
             toast.info(`Commande #${updatedOrder.reference} : ${updatedOrder.status_label}`);
         });
 
-        // Nettoyage des écouteurs pour éviter les fuites de mémoire sans détruire le canal global
         return () => {
             channel.stopListening('.order.created');
+            channel.stopListening('.round.added');
             channel.stopListening('.order.updated');
         };
-    }, [echo,setSelectedSale]);
+    }, [echo]);
 
     const handlePreviewCloture = async () => {
         setLoading(true);
         try {
-            // On récupère l'état actuel de la caisse SANS fermer
             const response = await api.get('api/cash/current-summary');
-
-            // On stocke les données pour les afficher dans le modal
             setPreviewData(response.data);
-            setIsClosing(true); // Ouvre le modal de saisie
+            setIsClosing(true);
         } catch (error) {
             toast.error("Impossible de récupérer le résumé de caisse");
         } finally {
@@ -146,48 +149,11 @@ export default function PosSalesPage() {
         }
     };
 
-
-
     // 2. Filtrage dynamique (Recherche par référence ou montant)
     const filteredOrders = orders.filter(order =>
         //  order.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.amounts.total.toString().includes(searchTerm)
     );
-    const handleCloseShift = async () => {
-        // 1. Validation de base
-        if (!closingAmount || isNaN(parseFloat(closingAmount))) {
-            toast.error("Veuillez saisir un montant de clôture valide");
-            return;
-        }
-
-        setLoading(true); // Si tu as un état de chargement pour le bouton
-
-        try {
-            // 2. Appel à l'API Laravel
-
-            const response = await api.get('api/cash/current-summary');
-
-            // 3. Mise à jour des états pour afficher le ticket virtuel
-            setLastReport(response.data.report);
-            setShowReport(true);
-
-            // 4. Fermer le modal de saisie
-            setIsClosing(false);
-
-            toast.success("Session de caisse clôturée avec succès");
-
-            // 5. Optionnel : On peut vider le store ici ou attendre que l'utilisateur 
-            // ferme le ticket virtuel (mieux pour l'UX)
-            // useCashStore.getState().closeSession();
-
-        } catch (error: any) {
-            console.error("Erreur clôture:", error);
-            const message = error.response?.data?.message || "Erreur lors de la clôture de la caisse";
-            toast.error(message);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handlePrint = async (sale: any) => {
         if (!sale) {
@@ -198,12 +164,6 @@ export default function PosSalesPage() {
         const toastId = toast.loading("Préparation de l'impression...");
 
         try {
-            /**
-             * On demande au serveur de créer un job d'impression.
-             * Le serveur va :
-             * 1. Créer une entrée dans `print_queue`
-             * 2. Diffuser l'événement via Reverb (Socket)
-             */
             await api.post(`/api/sales/${sale.id}/reprint`, {
                 type: 'receipt'
             });
@@ -230,28 +190,27 @@ export default function PosSalesPage() {
                 note: note
             });
 
-            // On affiche le ticket final (le rapport officiel avec l'écart calculé)
             setLastReport(response.data.report);
             setShowReport(true);
 
-            // On ferme tout le reste
             setIsClosing(false);
             setPreviewData(null);
 
-            // Appel du hook
-           // await printSessionReport(previewData);
             toast.success("Shift terminé et enregistré");
             useCashStore.getState().closeSession();
         } catch (error) {
             toast.error("Erreur lors de la validation finale");
         }
     };
+
     const handleGoHistory = () => {
         router.push('/pos/sales/history')
     }
+
     if (!isOpen) {
         return <CashOpenModal />;
     }
+
     return (
         <div className="flex flex-col h-full p-1 space-y-6">
             {/* Top Bar : Identique */}
@@ -335,10 +294,10 @@ export default function PosSalesPage() {
                                 </div>
                             </div>
 
-                            {/* LISTE DES ARTICLES GROUPÉS PAR ROUNDS */}
+                            {/* LISTE DES ARTICLES GROUPÉS PAR ROUNDS (rendu une seule fois, le bloc "compatibilité" dupliqué a été retiré) */}
                             <ScrollArea className="flex-1 min-h-0 w-full bg-slate-50/50 rounded-[2.5rem] p-8 border-2 border-dashed border-slate-200 mb-8">
                                 <div className="space-y-10">
-                                    {selectedSale.rounds?.map((round, rIdx) => (
+                                    {selectedSale.rounds?.map((round) => (
                                         <div key={round.id} className="relative">
                                             {/* Header du Round */}
                                             <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
@@ -358,7 +317,7 @@ export default function PosSalesPage() {
 
                                             {/* Items du Round */}
                                             <div className="space-y-4 pl-4">
-                                                {round.items?.map((item:OrderItem, idx) => (
+                                                {round.items?.map((item: OrderItem, idx: number) => (
                                                     <div key={idx} className="flex justify-between items-start group">
                                                         <div className="flex flex-col">
                                                             <div className="flex items-center gap-2">
@@ -367,7 +326,7 @@ export default function PosSalesPage() {
                                                             </div>
                                                             {item.modifiers?.map(m => (
                                                                 <span key={m.id} className="text-[10px] text-primary font-bold uppercase tracking-tighter ml-7">
-                                                                    + {m?.name || m.name}
+                                                                    + {m.name || m.name}
                                                                 </span>
                                                             ))}
                                                         </div>
@@ -380,25 +339,9 @@ export default function PosSalesPage() {
                                         </div>
                                     ))}
 
-                                    {/* Cas où il n'y a pas encore de rounds (compatibilité) */}
-                                    {/* On vérifie que rounds EXISTE et qu'il n'est PAS vide */}
-                                    {selectedSale.rounds && selectedSale.rounds.length > 0 && (
-                                        <div className="space-y-4">
-                                            {selectedSale.rounds.map((round: Round, idx: number) => (
-                                                <div key={round.id || idx} className="space-y-2">
-                                                    {/* On boucle sur les items à l'intérieur du round */}
-                                                    {round.items?.map((item: any, itemIdx: number) => (
-                                                        <div key={itemIdx} className="flex justify-between items-center group">
-                        <span className="font-black text-slate-800 text-sm">
-                            {item.qty}x {item.product.name}
-                        </span>
-                                                            <span className="font-black text-slate-900">
-                            {formatCurrency(item.total)}
-                        </span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ))}
+                                    {(!selectedSale.rounds || selectedSale.rounds.length === 0) && (
+                                        <div className="text-center py-12 opacity-30">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.2em]">Aucun round pour cette commande</p>
                                         </div>
                                     )}
                                 </div>
@@ -462,57 +405,15 @@ export default function PosSalesPage() {
                     Clôturer Shift
                 </Button>
             </div>
-            {isClosing && (
-                <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
-                    <Card className="max-w-md w-full rounded-[2.5rem] shadow-2xl border-none">
-                        <CardContent className="p-10 space-y-6">
-                            <div className="text-center space-y-2">
-                                <h2 className="text-2xl font-serif font-bold italic">Clôturer le Shift</h2>
-                                <p className="text-sm text-stone-500">Comptez l'argent en caisse (Cash + MoMo + Orange)</p>
-                            </div>
 
-                            <div className="space-y-4">
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-black uppercase tracking-widest ml-2">Montant Réel (FCFA)</label>
-                                    <Input
-                                        type="number"
-                                        value={closingAmount}
-                                        onChange={(e) => setClosingAmount(e.target.value)}
-                                        placeholder="Ex: 150000"
-                                        className="h-16 rounded-2xl bg-stone-50 border-none text-2xl font-mono font-bold"
-                                    />
-                                </div>
-
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-black uppercase tracking-widest ml-2">Note / Observations</label>
-                                    <textarea
-                                        value={note}
-                                        onChange={(e) => setNote(e.target.value)}
-                                        className="w-full rounded-2xl bg-stone-50 border-none p-4 text-sm focus:ring-0 min-h-[100px]"
-                                        placeholder="Raison d'un écart, problème technique..."
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3">
-                                <Button
-                                    onClick={() => setIsClosing(false)}
-                                    className="flex-1 h-14 rounded-2xl bg-stone-100 text-stone-600 hover:bg-stone-200 font-bold"
-                                >
-                                    Annuler
-                                </Button>
-                                <Button
-                                    onClick={handleCloseShift}
-                                    disabled={!closingAmount}
-                                    className="flex-1 h-14 rounded-2xl bg-emerald-500 text-white hover:bg-emerald-600 font-black uppercase tracking-wider"
-                                >
-                                    Confirmer
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            )}
+            {/*
+                Un seul modal de clôture désormais (celui avec le résumé "previewData").
+                L'ancien modal "isClosing && (...)" sans condition sur previewData a été
+                retiré : il se superposait systématiquement à celui-ci puisque
+                handlePreviewCloture fixe toujours previewData ET isClosing ensemble.
+                handleCloseShift (qui ne clôturait rien, juste un re-fetch du résumé)
+                a été retiré avec lui — la vraie clôture passe uniquement par confirmFinalClose.
+            */}
             {isClosing && previewData && (
                 <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
                     <Card className="max-w-md w-full rounded-[2.5rem] shadow-2xl border-none">
@@ -522,7 +423,6 @@ export default function PosSalesPage() {
                                 <p className="text-[10px] text-stone-400 uppercase tracking-widest">Résumé des ventes du système</p>
                             </div>
 
-                            {/* --- ÉTAPE A : AFFICHAGE DU RÉSUMÉ --- */}
                             <div className="bg-stone-50 rounded-2xl p-4 space-y-2 border border-stone-100 font-mono text-sm">
                                 {previewData.payments_detail.map((p: any, i: number) => (
                                     <div key={i} className="flex justify-between">
@@ -536,7 +436,6 @@ export default function PosSalesPage() {
                                 </div>
                             </div>
 
-                            {/* --- ÉTAPE B : SAISIE DU RÉEL --- */}
                             <div className="space-y-4">
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-black uppercase tracking-widest ml-2">Argent Réel en Caisse (FCFA)</label>
@@ -558,12 +457,13 @@ export default function PosSalesPage() {
                             </div>
 
                             <div className="flex gap-3">
-                                <Button onClick={() => setIsClosing(false)} className="flex-1 h-14 rounded-2xl bg-stone-100 text-stone-600 font-bold">
+                                <Button onClick={() => { setIsClosing(false); setPreviewData(null); }} className="flex-1 h-14 rounded-2xl bg-stone-100 text-stone-600 font-bold">
                                     Annuler
                                 </Button>
                                 <Button
                                     onClick={confirmFinalClose}
-                                    className="flex-1 h-14 rounded-2xl bg-stone-900 text-white font-black uppercase tracking-wider"
+                                    disabled={!closingAmount}
+                                    className="flex-1 h-14 rounded-2xl bg-stone-900 text-white font-black uppercase tracking-wider disabled:opacity-50"
                                 >
                                     Clôturer Définitivement
                                 </Button>

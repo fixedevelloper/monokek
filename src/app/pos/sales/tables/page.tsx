@@ -10,14 +10,15 @@ import {usePathname, useRouter} from 'next/navigation';
 import {Floor} from '@/src/types/tables';
 import api from '@/src/lib/axios';
 import {useAuthStore} from '@/src/store/use-auth-store';
-import {useUIStore} from '@/src/store/use-ui-store';
+import {useEcho} from '@/src/hooks/useEcho';
 
-import {useQuery} from '@tanstack/react-query';
+import {useQuery, useQueryClient} from '@tanstack/react-query';
 
 
 export default function TablesPage() {
     const router = useRouter();
-
+    const queryClient = useQueryClient();
+    const echo = useEcho();
 
     const [activeZoneId, setActiveZoneId] = useState<number | null>(null);
     const logout = useAuthStore((state) => state.logout);
@@ -43,7 +44,55 @@ export default function TablesPage() {
         }
     }, [zones, activeZoneId]);
 
-    // 3. Logique dérivée (Simple et performante)
+    // 3. SOCKET : mise à jour dynamique du statut des tables
+    //
+    // On réutilise le channel public "orders" déjà diffusé par le backend
+    // (order.created, round.added, order.updated envoient tous l'order avec
+    // sa relation 'table' chargée). Plutôt que d'attendre un refetch manuel
+    // de ['floors'], on patch directement la table concernée dans le cache
+    // React Query dès qu'un de ces events arrive.
+    useEffect(() => {
+        if (!echo) return;
+
+        const applyTableUpdateFromOrder = (order: any) => {
+            const table = order?.table;
+            if (!table?.id) return;
+
+            queryClient.setQueryData<Floor[]>(['floors'], (oldZones) => {
+                if (!oldZones) return oldZones;
+
+                return oldZones.map((zone) => ({
+                    ...zone,
+                    tables: zone.tables.map((t) =>
+                        t.id === table.id
+                            ? {
+                                ...t,
+                                // status vient de la table réelle en base (mise à jour par
+                                // le backend lors du round : 'occupied', etc.)
+                                status: table.status ?? t.status,
+                                // Le total consommé peut être remonté depuis order.amounts
+                                total: order?.amounts?.total ?? t.total,
+                            }
+                            : t
+                    ),
+                }));
+            });
+        };
+
+        const channel = echo.channel('orders');
+
+        channel.listen('.order.created', applyTableUpdateFromOrder);
+        channel.listen('.round.added', (payload: any) => applyTableUpdateFromOrder(payload?.order));
+        channel.listen('.order.updated', applyTableUpdateFromOrder);
+
+        return () => {
+            channel.stopListening('.order.created');
+            channel.stopListening('.round.added');
+            channel.stopListening('.order.updated');
+        };
+    }, [echo, queryClient]);
+
+    // 4. Logique dérivée (Simple et performante)
     const activeZone = useMemo(() =>
             zones.find(z => z.id === activeZoneId),
         [zones, activeZoneId]);

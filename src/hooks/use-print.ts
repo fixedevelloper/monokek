@@ -49,7 +49,7 @@ export const usePrint = () => {
     try {
       // ── CAS UNIQUE ET ASSURÉ POUR LE RÉSEAU (PC, TABLETTES ANDROID) ──────────
       if (printer.connection === 'network') {
-        console.log(`[usePrint] Routage réseau direct vers Laravel pour IP : ${printer.ip}`);
+       // console.log(`[usePrint] Routage réseau direct vers Laravel pour IP : ${printer.ip}`);
 
         await api.post(`/api/print-queue/${job.id}/dispatch-network`, {
           ip: printer.ip,
@@ -89,8 +89,8 @@ export const usePrint = () => {
       await api.post(`/api/print-queue/${job.id}/mark-success`);
 
     } catch (error: any) {
-      console.error(`[usePrint] Erreur critique sur le job #${job.id}:`, error);
-      toast.error(`Erreur d'impression : ${error?.response?.data?.error || "Vérifiez l'imprimante"}`);
+     // console.error(`[usePrint] Erreur critique sur le job #${job.id}:`, error);
+    //  toast.error(`Erreur d'impression : ${error?.response?.data?.error || "Vérifiez l'imprimante"}`);
     }
   };
 
@@ -99,10 +99,10 @@ export const usePrint = () => {
    */
   const checkPendingJobs = async () => {
     try {
-      const { data } = await api.get('/api/print-queue/pending');
+    /*  const { data } = await api.get('/api/print-queue/pending');
       for (const job of data) {
         await processPrintJob(job);
-      }
+      }*/
     } catch (err) {
       console.error("[usePrint] Échec récupération file d'attente :", err);
     }
