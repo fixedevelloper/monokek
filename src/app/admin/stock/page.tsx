@@ -8,12 +8,13 @@ import {Input} from "@/components/ui/input";
 import {AddIngredientModal} from './AddIngredientModal';
 import {cn} from '@/src/lib/utils';
 import {AdjustStockModal} from './AdjustStockModal';
+import {Ingredient} from '@/src/types/stock';
 
 export default function StockPage() {
   const { ingredients, isLoading, fetchIngredients, fetchUnits } = useStockStore();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [selectedItem, setSelectedItem] = useState<Ingredient | null>(null);
   const [adjustType, setAdjustType] = useState<'in' | 'out'>('in');
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
   useEffect(() => {
@@ -24,7 +25,7 @@ export default function StockPage() {
   const filteredItems = ingredients.filter(i =>
     i.name.toLowerCase().includes(search.toLowerCase())
   );
-  const handleOpenAdjust = (item: any, type: 'in' | 'out') => {
+  const handleOpenAdjust = (item: Ingredient, type: 'in' | 'out') => {
     setSelectedItem(item);
     setAdjustType(type);
     setIsAdjustModalOpen(true);
@@ -94,7 +95,7 @@ export default function StockPage() {
   );
 }
 
-function IngredientCard({ item, onAdjust }: { item: any, onAdjust: (item: any, type: 'in' | 'out') => void }) {
+function IngredientCard({ item, onAdjust }: { item: Ingredient, onAdjust: (item: Ingredient, type: 'in' | 'out') => void }) {
   const isLowStock = item.stock <= item.alert_qty;
 
   // Formater l'unité (soit objet, soit string selon ton API)
@@ -133,7 +134,7 @@ function IngredientCard({ item, onAdjust }: { item: any, onAdjust: (item: any, t
           "text-5xl font-black italic tracking-tighter",
           isLowStock ? "text-red-600" : "text-slate-900"
         )}>
-          {parseFloat(item.stock).toLocaleString()}
+          {item.stock.toLocaleString()}
         </span>
         <span className="text-sm font-bold text-slate-400 uppercase">{unitName}</span>
       </div>

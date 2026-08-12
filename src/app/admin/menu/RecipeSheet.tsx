@@ -8,10 +8,22 @@ import {Loader2, Plus, Save, Trash2} from 'lucide-react';
 import {useStockStore} from "@/src/store/use-stock-store";
 import api from "@/src/lib/axios";
 import {toast} from "sonner";
+import {Product} from "@/src/types/menus";
 
-export function RecipeSheet({ product, open, onOpenChange }: any) {
+interface RecipeFormItem {
+  ingredient_id: string | number;
+  qty: number | string;
+}
+
+interface RecipeSheetProps {
+  product: Product | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function RecipeSheet({ product, open, onOpenChange }: RecipeSheetProps) {
   const { ingredients, fetchIngredients } = useStockStore();
-  const [recipeItems, setRecipeItems] = useState<any[]>([]);
+  const [recipeItems, setRecipeItems] = useState<RecipeFormItem[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
   // Charger la recette existante au montage
@@ -28,13 +40,14 @@ export function RecipeSheet({ product, open, onOpenChange }: any) {
   
   const removeItem = (index: number) => setRecipeItems(recipeItems.filter((_, i) => i !== index));
 
-  const updateItem = (index: number, field: string, value: any) => {
+  const updateItem = (index: number, field: keyof RecipeFormItem, value: string | number) => {
     const newItems = [...recipeItems];
-    newItems[index][field] = value;
+    newItems[index] = { ...newItems[index], [field]: value };
     setRecipeItems(newItems);
   };
 
   const handleSave = async () => {
+    if (!product) return;
     setIsSaving(true);
     try {
       await api.post(`/api/admin/products/${product.id}/recipe`, { items: recipeItems });
@@ -71,7 +84,7 @@ export function RecipeSheet({ product, open, onOpenChange }: any) {
                 >
                   <option value="">Sélectionner...</option>
                   {ingredients.map(ing => (
-                    <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>
+                    <option key={ing.id} value={ing.id}>{ing.name} ({typeof ing.unit === 'object' ? ing.unit?.name : ing.unit})</option>
                   ))}
                 </select>
               </div>

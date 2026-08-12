@@ -3,10 +3,17 @@ import {Layers, Plus, Save, X} from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {ModifierItemForm} from "./ModifierItemForm";
 import {toast} from "sonner";
-import api from "../../../lib/axios";
+import * as catalogApi from "../../../lib/api/catalog";
+import {Modifier} from "../../../types/menus";
 
+interface ModifierGroupCardProps {
+    group: Modifier;
+    isSelected: boolean;
+    onToggle: (groupId: number) => void;
+    onRefresh: () => void;
+}
 
-export function ModifierGroupCard({ group, isSelected, onToggle, onRefresh }: any) {
+export function ModifierGroupCard({ group, isSelected, onToggle, onRefresh }: ModifierGroupCardProps) {
     const [showItemForm, setShowItemForm] = useState(false);
 // Fonction de suppression d'un item
     const handleDeleteItem = async (e: React.MouseEvent, itemId: number) => {
@@ -15,8 +22,7 @@ export function ModifierGroupCard({ group, isSelected, onToggle, onRefresh }: an
         if(!confirm("Supprimer cette option ?")) return;
 
         try {
-            // Utilisation de l'URL définie dans ton ModifierController
-            await api.delete(`/api/admin/modifier-items/${itemId}`);
+            await catalogApi.deleteModifierItem(itemId);
             onRefresh(); // Invalide la cache pour rafraîchir l'affichage
             toast.success("Option supprimée");
         } catch (error) {
@@ -75,7 +81,7 @@ export function ModifierGroupCard({ group, isSelected, onToggle, onRefresh }: an
             <div className="px-5 pb-5">
                 <div className="flex flex-wrap gap-2">
                     {group.items?.length > 0 ? (
-                        group.items.map((item: any) => (
+                        group.items.map((item) => (
                             <div
                                 key={item.id}
                                 className="group/item h-8 px-3 bg-white border border-slate-100 rounded-full flex items-center gap-2 shadow-sm hover:border-primary/30 transition-colors"

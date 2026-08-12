@@ -2,7 +2,6 @@
 
 import React, {useState} from "react";
 import {ArrowLeft, BookOpen, ChefHat, FileUp, Package, Search, Trash2, UtensilsCrossed,} from "lucide-react";
-import {AnimatePresence, motion} from "framer-motion";
 // UI Components
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
@@ -11,7 +10,9 @@ import {Card} from "@/components/ui/card";
 import {toast} from "sonner";
 import {formatCurrency} from "@/src/lib/formatCurrency";
 import {AddProductModal} from "./AddProductModal";
-import api from "@/src/lib/axios";
+import {AddCategoryModal} from "./AddCategoryModal";
+import * as catalogApi from "@/src/lib/api/catalog";
+import * as companyApi from "@/src/lib/api/company";
 import {Category, Product} from "@/src/types/menus";
 import {EditProductModal} from "./EditProductModal";
 import {ConfirmDeleteModal} from "./ConfirmDeleteModal";
@@ -19,10 +20,14 @@ import Link from "next/link";
 import {RecipeSheet} from "./RecipeSheet";
 import {SupplementSheet} from "./SupplementSheet";
 import {useQuery, useQueryClient} from '@tanstack/react-query';
+import {useDebouncedValue} from "@/src/hooks/use-debounced-value";
 
 export default function AdminMenuPage() {
     const [activeCategory, setActiveCategory] = useState("Tout");
     const [searchQuery, setSearchQuery] = useState("");
+    // L'input reste réactif à chaque frappe ; seul le filtrage (et le re-render
+    // de la grille de produits qu'il déclenche) attend 250ms d'inactivité.
+    const debouncedSearchQuery = useDebouncedValue(searchQuery, 250);
     const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
     const [openDelete, setOpenDelete] = useState(false);
     const [loadingDelete, setLoadingDelete] = useState(false);
@@ -44,10 +49,7 @@ export default function AdminMenuPage() {
         data: allModifiersGroups = [],
     } = useQuery({
         queryKey: ['modifier-groups'],
-        queryFn: async () => {
-            const res = await api.get("/api/admin/modifiers");
-            return res.data.data || res.data;
-        },
+        queryFn: () => catalogApi.listModifiers(),
         // Optionnel : Garder les données fraîches pendant 5 minutes
         staleTime: 5 * 60 * 1000,
     });
@@ -59,10 +61,7 @@ export default function AdminMenuPage() {
         isError: isProductsError
     } = useQuery({
         queryKey: ["products"],
-        queryFn: async () => {
-            const res = await api.get<{ data: Product[] }>('/api/admin/products');
-            return res.data.data;
-        },
+        queryFn: () => catalogApi.listProductsAdmin(),
     });
 
 // 2. Récupération des Catégories
@@ -71,10 +70,7 @@ export default function AdminMenuPage() {
         isLoading: isCategoriesLoading
     } = useQuery({
         queryKey: ["categories"],
-        queryFn: async () => {
-            const res = await api.get<{ data: Category[] }>('/api/admin/categories');
-            return res.data.data;
-        },
+        queryFn: () => catalogApi.listCategoriesAdmin(),
     });
 
 // 3. Sécurisation des données pour le filtrage
@@ -82,6 +78,15 @@ export default function AdminMenuPage() {
     const products = productsData || [];
     const categories = categoriesData || [];
     const isLoading = isProductsLoading || isCategoriesLoading;
+
+    // Chargées ici (pas dans AddCategoryModal) pour que le sélecteur de succursale du modal
+    // reçoive une liste déjà disponible en prop, comme RegisterDialog/StationDialog — un fetch
+    // interne au modal laissait une fenêtre asynchrone pendant laquelle un re-render de cette
+    // page (ex: refetch de ["categories"]/["products"]) réinitialisait le Select à vide.
+    const { data: branches = [] } = useQuery({
+        queryKey: ['branches-for-menu'],
+        queryFn: () => companyApi.listBranches(),
+    });
 
 
 
@@ -91,7 +96,7 @@ export default function AdminMenuPage() {
             activeCategoryId === null || p.category.id === activeCategoryId; // On utilise l'ID
 
         const matchesSearch =
-            p.name.toLowerCase().includes(searchQuery.toLowerCase());
+            p.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
 
         return matchesCategory && matchesSearch;
     });
@@ -109,7 +114,7 @@ export default function AdminMenuPage() {
         try {
             setLoadingDelete(true);
 
-            await api.delete(`/api/admin/products/${selectedId}`);
+            await catalogApi.deleteProduct(selectedId);
            // queryClient.invalidateQueries({ queryKey: ["products"] });
             toast.success("Produit supprimé !");
             setOpenDelete(false);
@@ -194,6 +199,8 @@ export default function AdminMenuPage() {
                             {cat.name}
                         </Button>
                     ))}
+
+                    <AddCategoryModal onCategoryAdded={refreshMenu} branches={branches} />
                 </div>
             </header>
 
@@ -205,14 +212,10 @@ export default function AdminMenuPage() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        <AnimatePresence mode="popLayout">
                             {filteredProducts.map((product) => (
-                                <motion.div
+                                <div
                                     key={product.id}
-                                    layout
-                                    initial={{opacity: 0, scale: 0.9}}
-                                    animate={{opacity: 1, scale: 1}}
-                                    exit={{opacity: 0, scale: 0.9}}
+                                    className="animate-in fade-in zoom-in-95 duration-200"
                                 >
                                     <Card
                                         className="group overflow-hidden rounded-[2rem] border-none shadow-sm bg-white dark:bg-slate-900 transition-all hover:shadow-xl">
@@ -335,9 +338,8 @@ export default function AdminMenuPage() {
                                             </div>
                                         </div>
                                     </Card>
-                                </motion.div>
+                                </div>
                             ))}
-                        </AnimatePresence>
                     </div>
                 )}
             </main>

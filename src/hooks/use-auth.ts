@@ -1,9 +1,11 @@
-import { useRouter } from 'next/navigation';
+  import { useRouter } from 'next/navigation';
 //import { useToast } from '@/components/ui/use-toast';
-import { useAuthStore } from '../store/use-auth-store';
+import { useAuthStore, User } from '../store/use-auth-store';
 import { Toaster, toast } from "sonner";
-import api from '../lib/axios';
 import { useUIStore } from '../store/use-ui-store';
+import * as identityApi from '../lib/api/identity';
+import api from '../lib/axios';
+import { getErrorMessage } from '../lib/errors';
 
 export const useAuth = () => {
   const router = useRouter();
@@ -13,31 +15,39 @@ export const useAuth = () => {
   /**
    * Connexion de l'utilisateur
    */
-  const login = async (credentials: any) => {
+  const login = async (credentials: { email: string; password: string }) => {
     try {
-      // 1. Appel via l'instance 'api' (Axios)
-      // L'URL de base et l'IP dynamique (Tauri/Web) sont gérées par l'intercepteur
-      const { data } = await api.post('/api/login', {
-        ...credentials,
-        device_name: isTauri ? "Tauri POS Terminal" : "Web Terminal",
-      });
+      // 1. Login (Spring's LoginResponse only carries {user: {id, name, role}, token})
+      const { user: summary, token } = await identityApi.login(
+          credentials.email,
+          credentials.password,
+          isTauri ? "Tauri POS Terminal" : "Web Terminal",
+      );
 
-      // 2. Extraction des données (Laravel retourne typiquement user, token, permissions)
-      const { user, token, permissions } = data;
+      // 2. Fetch the full profile (roles/permissions) now that we have a token.
+      // Pass it explicitly: the Zustand auth store (storeLogin below) hasn't
+      // written it yet, so the axios interceptor has nothing to attach.
+      const staff = await identityApi.me(token);
 
       // 3. Mise à jour du store Zustand (persistance automatique)
-      storeLogin({ ...user, permissions }, token);
+      storeLogin({
+        id: summary.id,
+        uuid: staff.uuid,
+        name: summary.name,
+        role: (summary.role ?? 'serveur') as User['role'],
+        permissions: staff.permissions,
+      }, token);
 
-      toast.success(`Bienvenue, ${user.name}`);
+      toast.success(`Bienvenue, ${summary.name}`);
 
       // 4. Redirection vers la page d'accueil (ou terminal)
       router.push('/');
       return true;
 
-    } catch (error: any) {
+    } catch (error) {
       // 5. Gestion des erreurs simplifiée avec Axios
-      // On récupère le message d'erreur envoyé par Laravel (ex: validations ou mauvais pass)
-      const errorMessage = error.response?.data?.message || error.message || "Impossible de joindre le serveur";
+      // On récupère le message d'erreur envoyé par le backend (ex: validations ou mauvais pass)
+      const errorMessage = getErrorMessage(error, "Impossible de joindre le serveur");
 
       toast.error("Erreur de connexion", {
         description: errorMessage,
@@ -53,7 +63,7 @@ export const useAuth = () => {
    */
   const logout = async () => {
     try {
-      await api.post('/logout');
+      await identityApi.logout();
     } finally {
       storeLogout();
       setLocked(false)
@@ -68,12 +78,13 @@ export const useAuth = () => {
   const can = (permission: string) => hasPermission(permission);
 
   /**
-   * Vérifie si une session de caisse est ouverte (Table 'cash_sessions')
+   * Vérifie si une session de caisse est ouverte
    */
   const checkCashSession = async () => {
     try {
-      const res = await api.get('/cash-sessions/active');
-      return res.data.active;
+      // CashController#status renvoie un CashStatusDto brut, pas d'enveloppe ApiResponse.
+      const response = await api.get<{ isOpen: boolean }>('/api/cash/status');
+      return response.data.isOpen;
     } catch {
       return false;
     }

@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { CashSession } from '@/src/types/cashier';
 
 interface CashState {
-  currentSession: any | null;
+  currentSession: CashSession | null;
   isOpen: boolean;
-  setSession: (session: any) => void;
+  setSession: (session: CashSession | null) => void;
   closeSession: () => void;
 }
 export const useCashStore = create<CashState>()(

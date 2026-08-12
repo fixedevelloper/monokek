@@ -1,19 +1,30 @@
 import { create } from 'zustand';
+import { Product, Reservation } from '@/src/types/menus';
+
+interface ReservationFormData {
+    customer_name: string;
+    customer_phone: string;
+    pickup_date: string;
+    guests_count: number;
+    manager_notes: string;
+}
+
+export interface SelectedReservationItem {
+    id: number;
+    product_id: number;
+    name: string;
+    price: number;
+    quantity: number;
+}
 
 interface ReservationState {
-    formData: {
-        customer_name: string;
-        customer_phone: string;
-        pickup_date: string;
-        guests_count: number;
-        manager_notes: string;
-    };
-    selectedItems: any[];
+    formData: ReservationFormData;
+    selectedItems: SelectedReservationItem[];
 
     // Actions
-    setField: (field: string, value: any) => void;
-    updateQty: (product: any, delta: number) => void;
-    initReservation: (reservation: any | null) => void;
+    setField: <K extends keyof ReservationFormData>(field: K, value: ReservationFormData[K]) => void;
+    updateQty: (product: Product, delta: number) => void;
+    initReservation: (reservation: Reservation | null) => void;
     reset: () => void;
     getTotal: () => number;
 }
@@ -33,7 +44,7 @@ export const useReservationStore = create<ReservationState>((set, get) => ({
 
     updateQty: (product, delta) => {
         const { selectedItems } = get();
-        const productId = product.id || product.product_id;
+        const productId = product.id;
         const existing = selectedItems.find(item => (item.id === productId || item.product_id === productId));
 
         if (existing) {
@@ -48,7 +59,7 @@ export const useReservationStore = create<ReservationState>((set, get) => ({
                 });
             }
         } else if (delta > 0) {
-            set({ selectedItems: [...selectedItems, { ...product, product_id: productId, quantity: 1 }] });
+            set({ selectedItems: [...selectedItems, { id: productId, product_id: productId, name: product.name, price: product.price, quantity: 1 }] });
         }
     },
 
@@ -62,7 +73,15 @@ export const useReservationStore = create<ReservationState>((set, get) => ({
                     guests_count: res.guests_count || 1,
                     manager_notes: res.manager_notes || ""
                 },
-                selectedItems: res.order?.items || []
+                // res.order.items vient de OrderItem (product.id / qty), pas de la forme
+                // {product_id, quantity} attendue ici — on la reconstruit à la volée.
+                selectedItems: (res.order?.items || []).map((item): SelectedReservationItem => ({
+                    id: item.product?.id ?? 0,
+                    product_id: item.product?.id ?? 0,
+                    name: item.product?.name ?? "",
+                    price: item.price,
+                    quantity: item.qty,
+                }))
             });
         } else {
             get().reset();
@@ -76,7 +95,7 @@ export const useReservationStore = create<ReservationState>((set, get) => ({
 
     getTotal: () => {
         return get().selectedItems.reduce((acc, item) =>
-            acc + (item.price || item.unit_price) * item.quantity, 0
+            acc + item.price * item.quantity, 0
         );
     }
 }));

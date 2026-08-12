@@ -1,3 +1,4 @@
+
 /**
  * Noms des rôles tels que définis dans la table 'roles' (Migration Laravel)
  */
@@ -10,6 +11,31 @@ export const ROLES = {
 } as const;
 
 export type AppRole = typeof ROLES[keyof typeof ROLES];
+
+/** Roles allowed into `/admin/**` — mirrors the backend's own `hasAnyRole("ADMIN", "MANAGER")` rule for `/api/admin/**`. */
+export const ADMIN_ROLES: AppRole[] = [ROLES.ADMIN, ROLES.MANAGER];
+
+/**
+ * Where a role lands after login, and where `RouteGuard` sends a user caught
+ * on a screen their role isn't allowed into. Single source of truth shared
+ * by `src/app/page.tsx` (post-login dispatch) and every `RouteGuard` usage,
+ * so both always agree on "home" for a given role.
+ */
+export function roleHomeRoute(role?: AppRole | string | null): string {
+  switch (role) {
+    case ROLES.ADMIN:
+    case ROLES.MANAGER:
+      return '/admin';
+    case ROLES.KITCHEN:
+      return '/kitchen/tickets';
+    case ROLES.CASHIER:
+      return '/pos/sales';
+    case ROLES.WAITER:
+      return '/pos/tables';
+    default:
+      return '/pos/tables';
+  }
+}
 
 /**
  * Mapping des permissions pour l'UI (Optionnel mais recommandé)

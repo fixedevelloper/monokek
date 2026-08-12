@@ -8,7 +8,7 @@ import {Badge} from "@/components/ui/badge";
 import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card";
 import Link from "next/link";
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
-import api from "@/src/lib/axios";
+import * as orderingApi from "@/src/lib/api/ordering";
 import {toast} from "sonner";
 import {useExport} from "../../../hooks/useExport";
 
@@ -28,20 +28,13 @@ export default function CommissionsPage() {
 // 1. Mise à jour du Fetch (On passe les filtres à l'API)
     const { data: commissions, isLoading } = useQuery({
         queryKey: ["commissions", selectedMonth, selectedYear], // Se recharge quand le mois/année change
-        queryFn: async () => {
-            const res = await api.get('/api/admin/commissions', {
-                params: { month: selectedMonth, year: selectedYear }
-            });
-            return res.data.data;
-        }
+        queryFn: () => orderingApi.listCommissions(selectedMonth, selectedYear),
     });
 
 
     // 2. Mutation pour payer un serveur
     const { mutate: settleCommissions } = useMutation({
-        mutationFn: async (waiterId: number) => {
-            return await api.post(`/api/admin/commissions/settle/${waiterId}`);
-        },
+        mutationFn: (waiterId: number) => orderingApi.settleCommissions(waiterId),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["commissions"] });
             toast.success("Paiement enregistré avec succès !");
@@ -49,12 +42,12 @@ export default function CommissionsPage() {
     });
 
     // Calculs rapides pour les Stats Cards
-    const totalPending = commissions?.filter((c: any) => c.status === 'pending')
-        .reduce((acc: number, curr: any) => acc + curr.amount, 0) || 0;
+    const totalPending = commissions?.filter((c) => c.status === 'pending')
+        .reduce((acc, curr) => acc + curr.amount, 0) || 0;
 
     const handleExport = () => {
         const columns = ["Date", "Serveur", "Type", "Détail", "Montant", "Statut"];
-        const data = commissions?.map((c: any) => [
+        const data = commissions?.map((c) => [
             c.created_at,
             c.waiter_name,
             c.type.toUpperCase(),
@@ -194,7 +187,7 @@ export default function CommissionsPage() {
                     </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                    {commissions?.map((comm: any) => (
+                    {commissions?.map((comm) => (
                         <tr key={comm.id} className="hover:bg-slate-50/30 transition-colors">
                             <td className="p-5">
                                 <div className="flex items-center gap-3">

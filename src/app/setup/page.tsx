@@ -7,6 +7,7 @@ import {Card, CardContent} from "@/components/ui/card";
 import {Input} from "@/components/ui/input";
 import {Button} from "@/components/ui/button";
 import {toast} from "sonner";
+import {invalidateBackendIpCache} from "@/src/lib/axios";
 
 export default function SetupPage() {
     const router = useRouter();
@@ -77,6 +78,7 @@ const handleSave = async () => {
                 localStorage.setItem("backend-ip", ipToStore);
                 console.log("Config sauvegardée dans le LocalStorage");
             }
+            invalidateBackendIpCache();
 
             setStatus('success');
             toast.success("Terminal connecté au serveur");

@@ -13,10 +13,7 @@ import {useEffect, useState} from 'react';
 import {usePathname, useRouter} from 'next/navigation';
 import {cn} from "@/lib/utils";
 import {LicenseGuard} from "../../components/layout/LicenseGuard";
-import {usePrint} from "../hooks/use-print";
-import {useEcho} from "../hooks/useEcho";
-import {getLocalSettings} from "../lib/storage";
-import {EchoProvider} from "../providers/EchoContext";
+import {NotificationsProvider} from "../providers/NotificationsProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -28,42 +25,7 @@ export default function RootLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [isReady, setIsReady] = useState(false);
-  const { processPrintJob, checkPendingJobs } = usePrint();
-  const echo = useEcho();
 
-/*  useEffect(() => {
-    let channel: any = null;
-
-    const setupRealtimePrinting = async () => {
-      const settings = await getLocalSettings();
-      const branchId = settings?.branch_id;
-
-      if (echo && branchId) {
-        console.log(`[Printer] 🎧 Écoute active sur la branche: ${branchId}`);
-
-        // 1. Écoute des nouveaux jobs en temps réel
-        channel = echo.channel(`branch.${branchId}`)
-            .listen('.PrintJobCreated', (e: any) => {
-              console.log("[Printer] 🚀 Signal reçu via Socket pour le job:", e.job.id);
-              processPrintJob(e.job);
-            });
-      }
-    };
-
-    setupRealtimePrinting();
-
-    // 2. Polling de sécurité (toutes les 60 secondes)
-    // Utile si le socket a été déconnecté momentanément
-    const interval = setInterval(() => {
-      console.log("[Printer] 🔍 Vérification périodique des jobs en attente...");
-      checkPendingJobs();
-    }, 1000);
-
-    return () => {
-      if (channel) channel.stopListening('.PrintJobCreated');
-      clearInterval(interval);
-    };
-  }, [echo]);*/
   useEffect(() => {
     const checkConfig = async () => {
       const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -103,7 +65,7 @@ export default function RootLayout({
         <QueryProvider>
           <LicenseGuard>
           <ThemeProvider attribute="class" defaultTheme="light">
-            <EchoProvider>
+            <NotificationsProvider>
             <TooltipProvider>
 
               {/* On n'affiche le contenu que lorsque la vérification IP est faite */}
@@ -128,7 +90,7 @@ export default function RootLayout({
               <PaymentModal />
 
             </TooltipProvider>
-            </EchoProvider>
+            </NotificationsProvider>
           </ThemeProvider>
           </LicenseGuard>
           <Toaster position="top-right" />

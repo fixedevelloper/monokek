@@ -1,6 +1,7 @@
 "use client";
 
 import {useEffect, useState} from "react";
+import {useForm} from "react-hook-form";
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger} from "@/components/ui/dialog";
 import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
@@ -8,67 +9,66 @@ import {Button} from "@/components/ui/button";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
 import {Loader2, Lock, Mail, Phone, UserPlus} from "lucide-react";
 import {toast} from "sonner";
-import api from "@/src/lib/axios";
+import * as identityApi from "@/src/lib/api/identity";
+import {Branch} from "@/src/types/company";
+import {AxiosError} from "axios";
+import {getErrorMessage} from "@/src/lib/errors";
 
-interface AddStaffModalProps {
-    onStaffAdded: () => void;
-}
 interface Role {
     id: number;
     name: string;
 }
-export function AddStaffModal({ onStaffAdded }: AddStaffModalProps) {
+
+interface AddStaffModalProps {
+    onStaffAdded: () => void;
+    branches: Branch[];
+    roles: Role[];
+}
+
+interface StaffFormValues {
+    name: string;
+    phone: string;
+    email: string;
+    password: string;
+    role: string;
+    branchId: string;
+}
+
+const NO_BRANCH = "__none__";
+
+export function AddStaffModal({ onStaffAdded, branches, roles }: AddStaffModalProps) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    const { register, handleSubmit, watch, setValue, reset } = useForm<StaffFormValues>({
+        defaultValues: { name: "", phone: "", email: "", password: "", role: "", branchId: NO_BRANCH },
+    });
 
-const [roles, setRoles] = useState<Role[]>([]); // État pour stocker les rôles de la DB
-    const [selectedRole, setSelectedRole] = useState("");
-
-    // Charger les rôles au montage du composant ou à l'ouverture du modal
     useEffect(() => {
-        const fetchRoles = async () => {
-            try {
-                const res = await api.get('/api/admin/staff/roles');
-                setRoles(res.data.data);
-                // Sélectionner le premier rôle par défaut s'il existe
-                if (res.data.data.length > 0) {
-                    setSelectedRole(res.data.data[0].name);
-                }
-            } catch (error) {
-                console.error("Erreur lors du chargement des rôles", error);
-            }
-        };
+        if (open) {
+            reset({ name: "", phone: "", email: "", password: "", role: roles[0]?.name ?? "", branchId: NO_BRANCH });
+        }
+    }, [open, roles, reset]);
 
-        if (open) fetchRoles();
-    }, [open]);
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
+    const onSubmit = async (data: StaffFormValues) => {
         setLoading(true);
-
-        const formData = new FormData(e.currentTarget);
-        const password = formData.get('password');
-        
-        // On construit l'objet manuellement pour gérer le rôle et la confirmation
-        const payload = {
-            ...Object.fromEntries(formData.entries()),
-           role: selectedRole,
-            password_confirmation: password, // On auto-confirme pour simplifier la création admin
-        };
-
         try {
-            await api.post('/api/admin/staff', payload);
-            
-            toast.success(`Le compte de ${payload} a été créé !`);
+            await identityApi.createStaff({
+                name: data.name, email: data.email, phone: data.phone, password: data.password, role: data.role,
+                branchId: data.branchId === NO_BRANCH ? null : Number(data.branchId),
+            });
+
+            toast.success(`Le compte de ${data.name} a été créé !`);
             setOpen(false);
             onStaffAdded();
-            (e.target as HTMLFormElement).reset(); // Reset le formulaire
-        } catch (error: any) {
-            const errors = error.response?.data?.errors;
-            // Gestion propre des erreurs de validation Laravel
+        } catch (error) {
+            const errors = error instanceof AxiosError
+                ? error.response?.data?.errors as Record<string, string> | undefined
+                : undefined;
+            // Gestion propre des erreurs de validation (Spring: {field: "message"})
             if (errors) {
-                Object.values(errors).flat().forEach((msg: any) => toast.error(msg));
+                Object.values(errors).forEach((msg) => toast.error(String(msg)));
             } else {
-                toast.error(error.response?.data?.message || "Erreur lors de la création");
+                toast.error(getErrorMessage(error, "Erreur lors de la création"));
             }
         } finally {
             setLoading(false);
@@ -90,17 +90,17 @@ const [roles, setRoles] = useState<Role[]>([]); // État pour stocker les rôles
                     </DialogTitle>
                 </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="space-y-5 mt-4">
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 mt-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase ml-1 text-slate-500">Nom complet</Label>
-                            <Input name="name" placeholder="Ex: Jean Dupont" className="h-12 rounded-2xl bg-slate-50 border-none px-4 font-bold" required />
+                            <Input {...register("name", { required: true })} placeholder="Ex: Jean Dupont" className="h-12 rounded-2xl bg-slate-50 border-none px-4 font-bold" />
                         </div>
                         <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase ml-1 text-slate-500">Téléphone</Label>
                             <div className="relative">
                                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                <Input name="phone" placeholder="6xx xxx xxx" className="pl-10 h-12 rounded-2xl bg-slate-50 border-none font-bold" />
+                                <Input {...register("phone")} placeholder="6xx xxx xxx" className="pl-10 h-12 rounded-2xl bg-slate-50 border-none font-bold" />
                             </div>
                         </div>
                     </div>
@@ -109,22 +109,22 @@ const [roles, setRoles] = useState<Role[]>([]); // État pour stocker les rôles
                         <Label className="text-[10px] font-black uppercase ml-1 text-slate-500">Adresse Email</Label>
                         <div className="relative">
                             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                            <Input name="email" type="email" placeholder="email@monokek.com" className="pl-10 h-12 rounded-2xl bg-slate-50 border-none font-bold" required />
+                            <Input {...register("email", { required: true })} type="email" placeholder="email@monokek.com" className="pl-10 h-12 rounded-2xl bg-slate-50 border-none font-bold" />
                         </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase ml-1 text-slate-500">Rôle Système</Label>
-                            <Select value={selectedRole} onValueChange={setSelectedRole}>
+                            <Select onValueChange={(v) => setValue("role", v)} value={watch("role")}>
                                 <SelectTrigger className="h-12 rounded-2xl bg-slate-100 border-none font-bold">
                                     <SelectValue placeholder="Chargement..." />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-2xl border-none shadow-xl">
                                     {roles.map((role) => (
-                                        <SelectItem 
-                                            key={role.id} 
-                                            value={role.name} 
+                                        <SelectItem
+                                            key={role.id}
+                                            value={role.name}
                                             className="font-bold capitalize"
                                         >
                                             {role.name}
@@ -137,15 +137,32 @@ const [roles, setRoles] = useState<Role[]>([]); // État pour stocker les rôles
                             <Label className="text-[10px] font-black uppercase ml-1 text-slate-500">Pass provisoire</Label>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                <Input name="password" type="password" className="pl-10 h-12 rounded-2xl bg-slate-50 border-none font-bold" required />
+                                <Input {...register("password", { required: true, minLength: 8 })} type="password" className="pl-10 h-12 rounded-2xl bg-slate-50 border-none font-bold" />
                             </div>
                         </div>
                     </div>
 
+                    <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase ml-1 text-slate-500">Branche</Label>
+                        <Select onValueChange={(v) => setValue("branchId", v)} value={watch("branchId")}>
+                            <SelectTrigger className="h-12 rounded-2xl bg-slate-100 border-none font-bold">
+                                <SelectValue placeholder="Aucune (accès toutes branches)" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-2xl border-none shadow-xl">
+                                <SelectItem value={NO_BRANCH} className="font-bold">Aucune (accès toutes branches)</SelectItem>
+                                {branches.map((branch) => (
+                                    <SelectItem key={branch.id} value={String(branch.id)} className="font-bold">
+                                        {branch.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
                     <DialogFooter className="pt-4">
-                        <Button 
-                            type="submit" 
-                            disabled={loading} 
+                        <Button
+                            type="submit"
+                            disabled={loading}
                             className="w-full h-14 rounded-2xl font-black uppercase tracking-widest bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all active:scale-95"
                         >
                             {loading ? <Loader2 className="animate-spin" /> : "Créer le compte staff"}

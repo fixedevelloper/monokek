@@ -4,6 +4,7 @@ import React, {useState} from 'react';
 import Link from 'next/link';
 import {
   BarChart3, Briefcase,
+  Building2,
   CalendarCheck,
   History,
   LayoutDashboard,
@@ -17,13 +18,13 @@ import {
   Users,
   Utensils
 } from 'lucide-react';
-import {motion} from 'framer-motion';
 import {Button} from '@/components/ui/button';
 import {useRouter} from 'next/navigation';
 import {useAuthStore} from '@/src/store/use-auth-store';
-import api from '@/src/lib/axios';
+import * as identityApi from '@/src/lib/api/identity';
 import {toast} from 'sonner';
 import {SecurityModal} from '@/components/layout/SecurityModal';
+import {AxiosError} from 'axios';
 
 // Types pour nos fonctionnalités
 interface AdminAction {
@@ -112,6 +113,13 @@ const ADMIN_ACTIONS: AdminAction[] = [
     href: "/admin/settings",
     color: "bg-pink-600",
   },
+  {
+    title: "Organisation",
+    description: "Sociétés, succursales et postes de travail",
+    icon: Building2,
+    href: "/admin/company",
+    color: "bg-indigo-700",
+  },
 ];
 
 export default function AdminPage() {
@@ -121,24 +129,25 @@ export default function AdminPage() {
   const updatePin = async (newPin: string) => {
     // Optionnel : Validation locale rapide avant l'appel
     if (newPin.length !== 4) {
-      return toast.error("Le code PIN doit comporter 4 chiffres");
+      toast.error("Le code PIN doit comporter 4 chiffres");
+      return;
     }
 
     try {
-      const response = await api.post('api/auth/update-pin', { pin: newPin });
+      await identityApi.updatePin(newPin);
 
       // Si tout est OK
       toast.success("Code PIN modifié !");
-      return response.data;
 
-    } catch (error: any) {
+    } catch (error) {
+      const axiosError = error instanceof AxiosError ? error : null;
       // 1. Erreur de validation (422)
-      if (error.response?.status === 422) {
-        const firstError = Object.values(error.response.data.errors)[0] as string;
+      if (axiosError?.response?.status === 422) {
+        const firstError = Object.values(axiosError.response.data.errors)[0] as string;
         toast.error(firstError || "Format de PIN invalide");
       }
       // 2. Erreur d'authentification (401)
-      else if (error.response?.status === 401) {
+      else if (axiosError?.response?.status === 401) {
         toast.error("Session expirée, veuillez vous reconnecter");
       }
       // 3. Autres erreurs (500, etc.)
@@ -158,23 +167,19 @@ export default function AdminPage() {
     }*/
 
     if (newPass.length < 8) {
-      return toast.error("Le nouveau mot de passe doit faire au moins 8 caractères.");
+      toast.error("Le nouveau mot de passe doit faire au moins 8 caractères.");
+      return;
     }
 
     try {
-      const response = await api.post('api/auth/update-password', {
-        old_password: oldPass,
-        new_password: newPass,
-       // new_password_confirmation: confirmPass // Laravel attend ceci pour la règle 'confirmed'
-      });
+      await identityApi.updatePassword(oldPass, newPass);
 
       toast.success("Mot de passe modifié avec succès !");
-      return response.data;
 
-    } catch (error: any) {
+    } catch (error) {
       // Gestion fine des erreurs
-      const status = error.response?.status;
-      const message = error.response?.data?.message;
+      const status = error instanceof AxiosError ? error.response?.status : undefined;
+      const message = error instanceof AxiosError ? error.response?.data?.message : undefined;
 
       if (status === 422) {
         // Erreur de validation (ex: ancien mot de passe incorrect)
@@ -244,10 +249,8 @@ export default function AdminPage() {
       <main className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {ADMIN_ACTIONS.map((action, i) => (
           <Link key={i} href={action.href}>
-            <motion.div
-              whileHover={{ y: -5, scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="group relative overflow-hidden bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 cursor-pointer h-full transition-all hover:shadow-xl hover:shadow-primary/5"
+            <div
+              className="group relative overflow-hidden bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 cursor-pointer h-full transition-all duration-200 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1 hover:scale-[1.02] active:scale-[0.98]"
             >
               {/* Cercle décoratif en arrière-plan */}
               <div className={`absolute -right-10 -top-10 w-32 h-32 ${action.color} opacity-[0.03] group-hover:opacity-[0.08] rounded-full transition-all duration-500`} />
@@ -270,7 +273,7 @@ export default function AdminPage() {
                   Accéder <LayoutDashboard size={12} />
                 </div>
               </div>
-            </motion.div>
+            </div>
           </Link>
         ))}
       </main>

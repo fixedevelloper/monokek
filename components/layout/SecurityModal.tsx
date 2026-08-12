@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Loader2, ShieldCheck } from "lucide-react";
 import { Alert, AlertDescription } from '../ui/alert';
+import { getErrorMessage } from '@/src/lib/errors';
 
 
 interface SecurityModalProps {
@@ -44,8 +45,8 @@ export function SecurityModal({
       await onUpdatePin(pin);
       onOpenChange(false);
       setPin("");
-    } catch (err: any) {
-      setError(err.message || "Impossible de mettre à jour le code PIN.");
+    } catch (err) {
+      setError(getErrorMessage(err, "Impossible de mettre à jour le code PIN."));
     } finally {
       setLoading(false);
     }
@@ -60,8 +61,8 @@ export function SecurityModal({
       onOpenChange(false);
       setOldPassword("");
       setNewPassword("");
-    } catch (err: any) {
-      setError(err.message || "Échec du changement de mot de passe.");
+    } catch (err) {
+      setError(getErrorMessage(err, "Échec du changement de mot de passe."));
     } finally {
       setLoading(false);
     }

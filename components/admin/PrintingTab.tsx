@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { Printer, RefreshCw, Loader2 } from 'lucide-react';
+import { Printer as PrinterIcon, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -10,9 +10,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import api from "@/src/lib/axios";
 import { toast } from "sonner";
 import { TabsContent } from '../ui/tabs';
+import { Printer } from '@/src/types/menus';
 
-export default function PrintingTab({ settings, updateSetting }: any) {
-  const [availablePrinters, setAvailablePrinters] = useState<any[]>([]);
+interface PrintingSettings {
+  default_printer_id?: number | string;
+  print_logo?: string | boolean;
+  open_drawer?: string | boolean;
+  [key: string]: unknown;
+}
+
+interface PrintingTabProps {
+  settings: PrintingSettings;
+  updateSetting: <K extends keyof PrintingSettings>(key: K, value: PrintingSettings[K]) => void;
+}
+
+export default function PrintingTab({ settings, updateSetting }: PrintingTabProps) {
+  const [availablePrinters, setAvailablePrinters] = useState<Printer[]>([]);
   const [isTesting, setIsTesting] = useState(false);
 
   // Charger les imprimantes enregistrées en base de données
@@ -45,7 +58,7 @@ export default function PrintingTab({ settings, updateSetting }: any) {
         <CardHeader>
           <div className="flex items-center gap-4">
             <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-              <Printer size={24} />
+              <PrinterIcon size={24} />
             </div>
             <div>
               <CardTitle className="text-sm font-black uppercase italic">Imprimante Thermique</CardTitle>

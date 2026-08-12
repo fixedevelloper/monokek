@@ -1,6 +1,7 @@
 "use client";
 
 import {useEffect, useState} from "react";
+import {useForm} from "react-hook-form";
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@/components/ui/dialog";
 import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
@@ -9,55 +10,70 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/c
 import {Edit3, Loader2, Mail, Phone, UserCircle2} from "lucide-react";
 import {toast} from "sonner";
 import {StaffMember} from "@/src/types/management";
-import api from "@/src/lib/axios";
+import * as identityApi from "@/src/lib/api/identity";
+import {Branch} from "@/src/types/company";
+import {AxiosError} from "axios";
+
+interface Role {
+    id: number;
+    name: string;
+}
 
 interface EditStaffModalProps {
     member: StaffMember;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onStaffUpdated: () => void;
+    branches: Branch[];
+    roles: Role[];
 }
 
-export function EditStaffModal({ member, open, onOpenChange, onStaffUpdated }: EditStaffModalProps) {
-    const [loading, setLoading] = useState(false);
-    const [roles, setRoles] = useState<{id: number, name: string}[]>([]);
-    const [selectedRole, setSelectedRole] = useState<string>(member.role);
+interface EditStaffFormValues {
+    name: string;
+    phone: string;
+    email: string;
+    role: string;
+    branchId: string;
+}
 
-    // Charger les rôles disponibles (même logique que l'ajout)
+const NO_BRANCH = "__none__";
+
+export function EditStaffModal({ member, open, onOpenChange, onStaffUpdated, branches, roles }: EditStaffModalProps) {
+    const [loading, setLoading] = useState(false);
+    const { register, handleSubmit, watch, setValue, reset } = useForm<EditStaffFormValues>({
+        defaultValues: {
+            name: member.name, phone: member.phone ?? "", email: member.email,
+            role: member.role, branchId: member.branch_id ? String(member.branch_id) : NO_BRANCH,
+        },
+    });
+
     useEffect(() => {
         if (open) {
-            const fetchRoles = async () => {
-                try {
-                    const res = await api.get('/api/admin/staff/roles');
-                    setRoles(res.data.data);
-                } catch (e) { console.error(e); }
-            };
-            fetchRoles();
-            setSelectedRole(member.role); // Reset le rôle sur celui du membre
+            reset({
+                name: member.name, phone: member.phone ?? "", email: member.email,
+                role: member.role, branchId: member.branch_id ? String(member.branch_id) : NO_BRANCH,
+            });
         }
-    }, [open, member]);
+    }, [open, member, reset]);
 
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
+    const onSubmit = async (data: EditStaffFormValues) => {
         setLoading(true);
-
-        const formData = new FormData(e.currentTarget);
-        const data = {
-            ...Object.fromEntries(formData.entries()),
-            role: selectedRole,
-        };
-
         try {
-            // On utilise l'UUID pour l'URL de l'API
-            await api.put(`/api/admin/staff/${member.uuid}`, data);
-            
-            toast.success(`Profil de ${member.name} mis à jour`);
+            await identityApi.updateStaff(member.uuid, {
+                name: data.name, email: data.email, phone: data.phone, role: data.role,
+                branchId: data.branchId === NO_BRANCH ? null : Number(data.branchId),
+                clearBranchId: data.branchId === NO_BRANCH,
+            });
+
+            toast.success(`Profil de ${data.name} mis à jour`);
             onStaffUpdated();
             onOpenChange(false);
-        } catch (error: any) {
-            const errors = error.response?.data?.errors;
+        } catch (error) {
+            const errors = error instanceof AxiosError
+                ? error.response?.data?.errors as Record<string, string> | undefined
+                : undefined;
             if (errors) {
-                Object.values(errors).flat().forEach((msg: any) => toast.error(msg));
+                Object.values(errors).forEach((msg) => toast.error(String(msg)));
             } else {
                 toast.error("Erreur lors de la modification");
             }
@@ -75,7 +91,7 @@ export function EditStaffModal({ member, open, onOpenChange, onStaffUpdated }: E
                     </DialogTitle>
                 </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="space-y-5 mt-4">
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 mt-4">
                     <div className="flex justify-center mb-4">
                         <div className="w-20 h-20 rounded-3xl bg-slate-100 flex items-center justify-center text-slate-300">
                             <UserCircle2 size={48} />
@@ -85,13 +101,13 @@ export function EditStaffModal({ member, open, onOpenChange, onStaffUpdated }: E
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase ml-1 text-slate-500">Nom complet</Label>
-                            <Input name="name" defaultValue={member.name} className="h-12 rounded-2xl bg-slate-50 border-none px-4 font-bold" required />
+                            <Input {...register("name", { required: true })} className="h-12 rounded-2xl bg-slate-50 border-none px-4 font-bold" />
                         </div>
                         <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase ml-1 text-slate-500">Téléphone</Label>
                             <div className="relative">
                                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                <Input name="phone" defaultValue={member.phone || ""} className="pl-10 h-12 rounded-2xl bg-slate-50 border-none font-bold" />
+                                <Input {...register("phone")} className="pl-10 h-12 rounded-2xl bg-slate-50 border-none font-bold" />
                             </div>
                         </div>
                     </div>
@@ -100,13 +116,13 @@ export function EditStaffModal({ member, open, onOpenChange, onStaffUpdated }: E
                         <Label className="text-[10px] font-black uppercase ml-1 text-slate-500">Adresse Email</Label>
                         <div className="relative">
                             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                            <Input name="email" type="email" defaultValue={member.email} className="pl-10 h-12 rounded-2xl bg-slate-50 border-none font-bold" required />
+                            <Input {...register("email", { required: true })} type="email" className="pl-10 h-12 rounded-2xl bg-slate-50 border-none font-bold" />
                         </div>
                     </div>
 
                     <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase ml-1 text-slate-500">Rôle au sein de Mono-Kek</Label>
-                        <Select value={selectedRole} onValueChange={setSelectedRole}>
+                        <Select onValueChange={(v) => setValue("role", v)} value={watch("role")}>
                             <SelectTrigger className="h-14 rounded-2xl bg-slate-100 border-none font-black uppercase text-[11px] tracking-widest">
                                 <SelectValue />
                             </SelectTrigger>
@@ -120,10 +136,27 @@ export function EditStaffModal({ member, open, onOpenChange, onStaffUpdated }: E
                         </Select>
                     </div>
 
+                    <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase ml-1 text-slate-500">Branche</Label>
+                        <Select onValueChange={(v) => setValue("branchId", v)} value={watch("branchId")}>
+                            <SelectTrigger className="h-12 rounded-2xl bg-slate-100 border-none font-bold">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-2xl border-none shadow-xl">
+                                <SelectItem value={NO_BRANCH} className="font-bold">Aucune (accès toutes branches)</SelectItem>
+                                {branches.map((branch) => (
+                                    <SelectItem key={branch.id} value={String(branch.id)} className="font-bold">
+                                        {branch.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
                     <DialogFooter className="pt-4">
-                        <Button 
-                            type="submit" 
-                            disabled={loading} 
+                        <Button
+                            type="submit"
+                            disabled={loading}
                             className="w-full h-14 rounded-2xl font-black uppercase tracking-widest bg-slate-900 hover:bg-black shadow-lg transition-all active:scale-95"
                         >
                             {loading ? <Loader2 className="animate-spin" /> : "Sauvegarder les modifications"}

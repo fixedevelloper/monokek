@@ -1,19 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
     ChefHat, Loader2, LockIcon, ChevronLeft,
     Timer, CheckCircle2, PlayCircle, Layers
 } from "lucide-react";
 import { toast } from "sonner";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import api from "@/src/lib/axios";
 import { cn } from "@/lib/utils";
-import { useEcho } from "@/src/hooks/useEcho";
+import { useNotifications } from "@/src/providers/NotificationsProvider";
 
 // On définit l'interface pour correspondre à notre nouveau Resource Laravel
 interface KitchenTicket {
@@ -22,7 +23,7 @@ interface KitchenTicket {
     table: string;
     status: 'pending' | 'preparing' | 'ready';
     createdAt: string;
-    round_number: number;
+    roundNumber: number;
     items: Array<{
         id: number;
         name: string;
@@ -35,64 +36,60 @@ export default function KitchenTicketsContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const stationId = searchParams.get('station');
-    const echo = useEcho();
-
-    const [tickets, setTickets] = useState<KitchenTicket[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const {on} = useNotifications();
+    const queryClient = useQueryClient();
 
     // 1. Fetch des tickets
-    const fetchTickets = useCallback(async () => {
-        if (!stationId) return;
-        try {
+    const ticketsQueryKey = ['kitchen-tickets', stationId] as const;
+    const {data: tickets = [], isLoading} = useQuery({
+        queryKey: ticketsQueryKey,
+        queryFn: async () => {
+            // GET /api/kitchen/tickets expects `stationId` (camelCase — the Java @RequestParam
+            // name), and returns a bare JSON array, not a {data: [...]} envelope.
             const { data } = await api.get(`/api/kitchen/tickets`, {
-                params: { station_id: stationId }
+                params: { stationId }
             });
-            setTickets(data.data);
-        } catch (error) {
-            toast.error("Erreur de synchronisation");
-        } finally {
-            setIsLoading(false);
-        }
-    }, [stationId]);
+            return data as KitchenTicket[];
+        },
+        enabled: !!stationId,
+    });
 
+    // 2. Écoute temps réel via SSE — payload léger (pas les items), donc on
+    // refetch la liste complète plutôt que de tenter de reconstruire un ticket.
     useEffect(() => {
-        fetchTickets();
-    }, [fetchTickets]);
+        if (!stationId) return;
 
-    // 2. Écoute temps réel via Laravel Echo
-    useEffect(() => {
-        if (!echo || !stationId) return;
+        const off = on('ticket.created', (payload) => {
+            if (String(payload?.stationId) !== String(stationId)) return;
 
-        // On écoute le canal spécifique à la station
-        const channel = echo.channel(`kitchen.station.${stationId}`)
-            .listen('.ticket.created', (newTicket: KitchenTicket) => {
-                setTickets(prev => [newTicket, ...prev]);
-                // Son de notification (Optionnel: ajouter le fichier dans /public/sounds/)
-                const audio = new Audio('/sounds/new-order.mp3');
-                audio.play().catch(() => {});
-                toast.info(`Nouveau ticket : Table ${newTicket.table}`);
-            });
+            queryClient.invalidateQueries({ queryKey: ticketsQueryKey });
+            const audio = new Audio('/sounds/new-order.mp3');
+            audio.play().catch(() => {});
+            toast.info(`Nouveau ticket : Table ${payload?.tableName || 'N/A'}`);
+        });
 
-        return () => echo.leaveChannel(`kitchen.station.${stationId}`);
-    }, [echo, stationId]);
+        return off;
+    }, [on, stationId]);
 
     // 3. Mise à jour du statut
-    const handleStatusChange = async (ticketId: number, nextStatus: string) => {
+    const handleStatusChange = async (ticketId: number, nextStatus: KitchenTicket['status']) => {
         try {
             await api.patch(`/api/kitchen/tickets/${ticketId}/status`, {
                 status: nextStatus
             });
 
-            if (nextStatus === 'ready') {
-                // Si c'est prêt, on le retire de la liste après un court délai
-                // pour garder l'écran de cuisine propre
-                setTickets(prev => prev.filter(t => t.id !== ticketId));
-                toast.success("Commande prête à servir !");
-            } else {
+            queryClient.setQueryData<KitchenTicket[]>(ticketsQueryKey, (prev = []) => {
+                if (nextStatus === 'ready') {
+                    // Si c'est prêt, on le retire de la liste après un court délai
+                    // pour garder l'écran de cuisine propre
+                    return prev.filter(t => t.id !== ticketId);
+                }
                 // Sinon on met juste à jour le statut localement (ex: Preparing)
-                setTickets(prev => prev.map(t =>
-                    t.id === ticketId ? { ...t, status: nextStatus as any } : t
-                ));
+                return prev.map(t => t.id === ticketId ? { ...t, status: nextStatus } : t);
+            });
+
+            if (nextStatus === 'ready') {
+                toast.success("Commande prête à servir !");
             }
         } catch (error) {
             toast.error("Action impossible");
@@ -168,7 +165,7 @@ export default function KitchenTicketsContent() {
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <Layers size={14} className="text-primary" />
-                                        <span className="font-black text-xs text-primary uppercase italic">ROUND {ticket.round_number}</span>
+                                        <span className="font-black text-xs text-primary uppercase italic">ROUND {ticket.roundNumber}</span>
                                     </div>
                                     <h3 className="font-black text-3xl italic tracking-tighter leading-none">{ticket.table}</h3>
                                     <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mt-2">REF: {ticket.reference}</p>

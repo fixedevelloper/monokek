@@ -1,9 +1,8 @@
 "use client";
 
 import {useEffect, useState} from "react";
-import {ArrowLeft, Edit2, Mail, MoreVertical, Phone, Search, ShieldCheck, Trash2, UserCircle2} from "lucide-react";
+import {ArrowLeft, Building2, Edit2, Mail, MoreVertical, Phone, Search, ShieldCheck, Trash2, UserCircle2} from "lucide-react";
 import Link from "next/link";
-import {AnimatePresence, motion} from "framer-motion";
 
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
@@ -12,14 +11,23 @@ import {Card} from "@/components/ui/card";
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from "@/components/ui/dropdown-menu";
 import {toast} from "sonner";
 import {AddStaffModal} from "./AddStaffModal";
-import api from "@/src/lib/axios";
+import * as identityApi from "@/src/lib/api/identity";
+import * as companyApi from "@/src/lib/api/company";
 import {ROLE_CONFIG, StaffMember} from "@/src/types/management";
+import {Branch} from "@/src/types/company";
 import {EditStaffModal} from "./EditStaffModal";
 import {PermissionsModal} from "./PermissionsModal";
 
+interface Role {
+  id: number;
+  name: string;
+}
 
 export default function AdminStaffPage() {
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const branchNames = Object.fromEntries(branches.map((b) => [b.id, b.name]));
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
 const [selectedMember, setSelectedMember] = useState<StaffMember | null>(null);
@@ -30,9 +38,8 @@ const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const fetchStaff = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/admin/staff');
-      // On s'assure de matcher la structure de UserResource (res.data.data)
-      setStaff(res.data.data);
+      const members = await identityApi.listStaff();
+      setStaff(members);
     } catch (error) {
       toast.error("Impossible de charger l'équipe");
     } finally {
@@ -41,8 +48,25 @@ const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   };
 
   useEffect(() => {
+    companyApi.listBranches().then(setBranches).catch(() => {});
+    identityApi.listRoles().then(setRoles).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     fetchStaff();
   }, []);
+
+  const handleRevokeAccess = async (member: StaffMember) => {
+    if (!confirm(`Révoquer l'accès de ${member.name} ? Cette personne ne pourra plus se connecter.`)) return;
+
+    try {
+      await identityApi.deleteStaff(member.uuid);
+      toast.success(`Accès de ${member.name} révoqué`);
+      fetchStaff();
+    } catch (error) {
+      toast.error("Impossible de révoquer cet accès");
+    }
+  };
 
   // Filtrage dynamique côté client
   const filteredStaff = staff.filter((member) =>
@@ -80,7 +104,7 @@ const [isEditModalOpen, setIsEditModalOpen] = useState(false);
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <AddStaffModal onStaffAdded={fetchStaff} />
+            <AddStaffModal onStaffAdded={fetchStaff} branches={branches} roles={roles} />
           </div>
         </div>
       </header>
@@ -95,17 +119,13 @@ const [isEditModalOpen, setIsEditModalOpen] = useState(false);
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <AnimatePresence mode="popLayout">
               {filteredStaff.map((member) => {
                 const config = ROLE_CONFIG[member.role] || { label: member.role, color: "bg-slate-100" };
-                
+
                 return (
-                  <motion.div
+                  <div
                     key={member.uuid} // Utilisation de l'UUID pour la clé React
-                    layout
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
+                    className="animate-in fade-in zoom-in-95 duration-200"
                   >
                     <Card className="p-6 rounded-[2.5rem] border-none shadow-sm bg-white hover:shadow-xl transition-all group relative overflow-hidden">
                       <div className="flex justify-between items-start mb-4">
@@ -128,7 +148,9 @@ const [isEditModalOpen, setIsEditModalOpen] = useState(false);
                             className="gap-2 font-black text-[10px] uppercase cursor-pointer rounded-xl py-3">
                               <Edit2 size={14} /> Modifier Profil
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="gap-2 font-black text-[10px] uppercase cursor-pointer text-red-600 focus:text-red-600 rounded-xl py-3">
+                            <DropdownMenuItem
+                            onClick={() => handleRevokeAccess(member)}
+                            className="gap-2 font-black text-[10px] uppercase cursor-pointer text-red-600 focus:text-red-600 rounded-xl py-3">
                               <Trash2 size={14} /> Révoquer l'accès
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -163,6 +185,14 @@ const [isEditModalOpen, setIsEditModalOpen] = useState(false);
                           </div>
                           <span className="text-[11px] font-bold">{member.phone || "Non renseigné"}</span>
                         </div>
+                        <div className="flex items-center gap-3 text-muted-foreground">
+                          <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center">
+                            <Building2 size={12} />
+                          </div>
+                          <span className="text-[11px] font-bold">
+                            {member.branch_id ? (branchNames[member.branch_id] ?? `Branche #${member.branch_id}`) : "Toutes branches"}
+                          </span>
+                        </div>
                       </div>
 
                       <Button
@@ -174,10 +204,9 @@ const [isEditModalOpen, setIsEditModalOpen] = useState(false);
                         <ShieldCheck size={14} /> Permissions
                       </Button>
                     </Card>
-                  </motion.div>
+                  </div>
                 );
               })}
-            </AnimatePresence>
           </div>
         )}
 
@@ -187,11 +216,13 @@ const [isEditModalOpen, setIsEditModalOpen] = useState(false);
           </div>
         )}
         {selectedMember && (
-    <EditStaffModal 
+    <EditStaffModal
         member={selectedMember}
         open={isEditModalOpen}
         onOpenChange={setIsEditModalOpen}
         onStaffUpdated={fetchStaff}
+        branches={branches}
+        roles={roles}
     />
 )}
 {/* Modal des Permissions */}

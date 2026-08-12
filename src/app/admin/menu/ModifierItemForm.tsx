@@ -2,9 +2,14 @@ import {useState} from "react";
 import {Button} from "@/components/ui/button";
 import {Check, Loader2} from "lucide-react";
 import {toast} from "sonner";
-import api from "../../../lib/axios";
+import * as catalogApi from "../../../lib/api/catalog";
 
-export function ModifierItemForm({ groupId, onActionComplete }: any) {
+interface ModifierItemFormProps {
+    groupId: number;
+    onActionComplete: () => void;
+}
+
+export function ModifierItemForm({ groupId, onActionComplete }: ModifierItemFormProps) {
     const [name, setName] = useState("");
     const [price, setPrice] = useState("");
     const [loading, setLoading] = useState(false);
@@ -15,7 +20,7 @@ export function ModifierItemForm({ groupId, onActionComplete }: any) {
 
         setLoading(true);
         try {
-            await api.post(`/api/admin/modifiers/${groupId}/items`, {
+            await catalogApi.addModifierItem(groupId, {
                 name,
                 price: parseFloat(price) || 0,
             });

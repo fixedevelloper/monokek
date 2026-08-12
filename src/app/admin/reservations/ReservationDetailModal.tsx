@@ -8,8 +8,16 @@ import {format} from "date-fns";
 import {fr} from "date-fns/locale";
 import {Button} from "@/components/ui/button";
 import {formatCurrency} from "../../../lib/formatCurrency";
+import {OrderItem, Reservation} from "@/src/types/menus";
 
-export function ReservationDetailModal({ open, onOpenChange, reservation ,onPayment}: any) {
+interface ReservationDetailModalProps {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    reservation: Reservation | null;
+    onPayment: (reservation: Reservation) => void;
+}
+
+export function ReservationDetailModal({ open, onOpenChange, reservation, onPayment }: ReservationDetailModalProps) {
     if (!reservation) return null;
 
 
@@ -62,13 +70,13 @@ export function ReservationDetailModal({ open, onOpenChange, reservation ,onPaym
                     <div className="space-y-4">
                         <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Articles Commandés</p>
                         <div className="space-y-3">
-                            {reservation.order?.items?.map((item: any, idx: number) => (
+                            {reservation.order?.items?.map((item: OrderItem, idx: number) => (
                                 <div key={idx} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
                                     <div className="flex items-center gap-3">
                     <span className="h-6 w-6 rounded-lg bg-slate-900 text-white flex items-center justify-center text-[10px] font-black italic">
                       {item.qty}x
                     </span>
-                                        <span className="text-xs font-black uppercase text-slate-700">{item.name || item.product?.name}</span>
+                                        <span className="text-xs font-black uppercase text-slate-700">{item.product?.name}</span>
                                     </div>
                                     <span className="text-xs font-bold text-slate-500">{ formatCurrency((item.price * item.qty))}</span>
                                 </div>
@@ -88,16 +96,16 @@ export function ReservationDetailModal({ open, onOpenChange, reservation ,onPaym
                     <div className="bg-slate-950 rounded-[2rem] p-6 flex justify-between items-center shadow-xl shadow-slate-950/20">
                         <div>
                             <p className="text-[10px] font-black uppercase text-white/40 tracking-widest leading-none">
-                                {['pending_payment', 'paid', 'completed'].includes(reservation.order?.status)
+                                {!!reservation.order?.status && ['pending_payment', 'paid', 'completed'].includes(reservation.order.status)
                                     ? 'Suivi de commande'
                                     : 'Total à régler'}
                             </p>
                             <p className="text-2xl font-black text-white italic tracking-tighter">
-                                {formatCurrency(reservation.order?.amounts.total)}
+                                {formatCurrency(reservation.order?.amounts.total ?? 0)}
                             </p>
                         </div>
 
-                        {['pending_payment', 'paid', 'completed'].includes(reservation.order?.status) ? (
+                        {!!reservation.order?.status && ['pending_payment', 'paid', 'completed'].includes(reservation.order.status) ? (
                             <div className="flex flex-col items-end gap-1">
                                 <Badge className={`rounded-lg font-black text-[10px] uppercase italic ${
                                     reservation.order?.status === 'paid' ? 'bg-emerald-500' : 'bg-amber-500'

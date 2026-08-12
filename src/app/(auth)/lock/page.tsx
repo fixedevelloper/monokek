@@ -1,14 +1,13 @@
 "use client";
 
 import React, {useState} from 'react';
-import {AnimatePresence, motion} from 'framer-motion';
 import {Delete, Loader2, Lock, LogOut} from 'lucide-react';
 
 import {Button} from '@/components/ui/button';
 import {cn} from '@/lib/utils';
 import {useAuth} from '@/src/hooks/use-auth';
 import {useUIStore} from '@/src/store/use-ui-store';
-import api from '@/src/lib/axios';
+import * as identityApi from '@/src/lib/api/identity';
 
 export default function LockScreen() {
   const { user, logout } = useAuth();
@@ -32,8 +31,7 @@ export default function LockScreen() {
       if (newPin.length === 4) {
         setLoading(true);
         try {
-          // Appel à ton endpoint Laravel
-          await api.post('/api/auth/verify-pin', { pin: newPin });
+          await identityApi.verifyPin(newPin);
 
           // Si succès (200 OK)
           setLocked(false);
@@ -53,13 +51,10 @@ export default function LockScreen() {
   // Ajoute cet état dans ton composant
 
   return (
-    <AnimatePresence>
+    <>
       {isLocked && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-xl flex flex-col items-center justify-center"
+        <div
+          className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-xl flex flex-col items-center justify-center animate-in fade-in duration-200"
         >
           <div className="w-full max-w-sm px-6 space-y-8 flex flex-col items-center">
 
@@ -138,8 +133,8 @@ export default function LockScreen() {
               </Button>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   );
 }

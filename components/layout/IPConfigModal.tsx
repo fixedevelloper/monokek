@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {AlertCircle, CheckCircle2, Globe, Loader2} from "lucide-react";
 import {useRouter} from "next/navigation";
 import {toast} from "sonner";
+import {invalidateBackendIpCache} from "@/src/lib/axios";
 
 export function IPConfigModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const router = useRouter();
@@ -13,25 +14,33 @@ export function IPConfigModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
     const [testing, setTesting] = useState(false);
     const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
-    // 1. Chargement initial avec la syntaxe V2
+    // Vérifie si l'objet __TAURI__ est présent dans la fenêtre globale
+    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+    // 1. Chargement initial — symétrique à handleSave : Store Tauri en desktop,
+    // localStorage en navigateur (le Store Tauri n'existe pas hors Tauri, l'appeler
+    // quand même jette "Cannot read properties of undefined (reading 'invoke')").
     useEffect(() => {
         const loadConfig = async () => {
             try {
-                const { load } = await import("@tauri-apps/plugin-store");
-                const store = await load(".settings.json", {
-                    autoSave: true,
-                    defaults: {}
-                });
-                const savedIp = await store.get<string>("backend-ip");
-                if (savedIp) setIp(savedIp);
+                if (isTauri) {
+                    const { load } = await import("@tauri-apps/plugin-store");
+                    const store = await load(".settings.json", {
+                        autoSave: true,
+                        defaults: {}
+                    });
+                    const savedIp = await store.get<string>("backend-ip");
+                    if (savedIp) setIp(savedIp);
+                } else {
+                    const savedIp = localStorage.getItem("backend-ip");
+                    if (savedIp) setIp(savedIp);
+                }
             } catch (e) {
                 console.error("Erreur chargement config:", e);
             }
         };
         loadConfig();
-    }, []);
-    // Vérifie si l'objet __TAURI__ est présent dans la fenêtre globale
-    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+    }, [isTauri]);
 
     const handleSave = async () => {
         setTesting(true);
@@ -76,6 +85,7 @@ export function IPConfigModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                     localStorage.setItem("backend-ip", ipToStore);
                     console.log("Config sauvegardée dans le LocalStorage");
                 }
+                invalidateBackendIpCache();
 
                 setStatus('success');
                 toast.success("Terminal connecté au serveur");

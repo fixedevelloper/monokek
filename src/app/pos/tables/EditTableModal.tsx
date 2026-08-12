@@ -8,8 +8,9 @@ import {Button} from "@/components/ui/button";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
 import {Loader2, Pencil, Users} from "lucide-react";
 import {toast} from "sonner";
-import api from "@/src/lib/axios";
+import * as floorplanApi from "@/src/lib/api/floorplan";
 import {Floor, Table} from "@/src/types/tables";
+import {getErrorMessage} from "@/src/lib/errors";
 
 interface EditTableModalProps {
     table: Table | null;
@@ -36,21 +37,19 @@ export function EditTableModal({ table, floors, open, onOpenChange, onSuccess }:
         e.preventDefault();
         setLoading(true);
 
+        if (!table) return;
         const formData = new FormData(e.currentTarget);
-        const data = {
-            name: formData.get('name'),
-            seats: formData.get('seats'),
-            floor_id: selectedFloor,
-            status: table?.status // On garde le statut actuel
-        };
+        const name = String(formData.get('name') ?? '');
+        const seats = parseInt(String(formData.get('seats') ?? ''), 10) || 1;
+        // Le statut se change via updateTableStatus (endpoint dédié) — UpdateTableRequest ne le porte pas.
 
         try {
-            await api.put(`/api/admin/tables/${table?.id}`, data);
-            toast.success(`Table ${data.name} mise à jour`);
+            await floorplanApi.updateTable(table.id, { name, seats, floorId: Number(selectedFloor) });
+            toast.success(`Table ${name} mise à jour`);
             onOpenChange(false);
             onSuccess();
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || "Erreur lors de la modification");
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Erreur lors de la modification"));
         } finally {
             setLoading(false);
         }

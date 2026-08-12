@@ -8,7 +8,8 @@ import {Button} from "@/components/ui/button";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
 import {LayoutGrid, Loader2, Plus, Users} from "lucide-react";
 import {toast} from "sonner";
-import api from "@/src/lib/axios";
+import * as floorplanApi from "@/src/lib/api/floorplan";
+import {getErrorMessage} from "@/src/lib/errors";
 
 interface Floor {
     id: number;
@@ -31,20 +32,16 @@ export function AddTableModal({ floors, activeFloorId, onSuccess }: AddTableModa
         setLoading(true);
 
         const formData = new FormData(e.currentTarget);
-        const data = {
-            name: formData.get('name'),
-            seats: formData.get('seats'),
-            floor_id: selectedFloor,
-            status: 'free' // Statut par défaut selon ton schéma
-        };
+        const name = String(formData.get('name') ?? '');
+        const seats = parseInt(String(formData.get('seats') ?? ''), 10) || 1;
 
         try {
-            await api.post('/api/admin/tables', data);
-            toast.success(`Table ${data.name} ajoutée avec succès`);
+            await floorplanApi.createTable({ name, seats, floorId: Number(selectedFloor) });
+            toast.success(`Table ${name} ajoutée avec succès`);
             setOpen(false);
             onSuccess();
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || "Erreur lors de la création");
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Erreur lors de la création"));
         } finally {
             setLoading(false);
         }

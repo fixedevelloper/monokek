@@ -1,40 +1,56 @@
 "use client";
 
-import {useState} from "react";
+import {useEffect, useState} from "react";
+import {useForm} from "react-hook-form";
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger} from "@/components/ui/dialog";
 import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
 import {Button} from "@/components/ui/button";
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
 import {Layers, Loader2, Plus} from "lucide-react";
 import {toast} from "sonner";
-import api from "@/src/lib/axios";
+import * as floorplanApi from "@/src/lib/api/floorplan";
+import {Branch} from "@/src/types/company";
+import {getErrorMessage} from "@/src/lib/errors";
 
 interface AddFloorModalProps {
     onSuccess: () => void;
+    branches: Branch[];
 }
 
-export function AddFloorModal({ onSuccess }: AddFloorModalProps) {
+interface FloorFormValues {
+    name: string;
+    branchId: string;
+}
+
+export function AddFloorModal({ onSuccess, branches }: AddFloorModalProps) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    const { register, handleSubmit, watch, setValue, reset } = useForm<FloorFormValues>({
+        defaultValues: { name: "", branchId: "" },
+    });
 
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
+    useEffect(() => {
+        if (open) {
+            reset({ name: "", branchId: branches[0] ? String(branches[0].id) : "" });
+        }
+    }, [open, branches, reset]);
+
+    const onSubmit = async (data: FloorFormValues) => {
+        if (!data.branchId) {
+            toast.error("Choisissez une succursale.");
+            return;
+        }
         setLoading(true);
 
-        const formData = new FormData(e.currentTarget);
-        const data = {
-            name: formData.get('name'),
-        };
-
         try {
-            // Appel vers ton backend Laravel
-            await api.post('/api/pos/floors', data);
-            
+            await floorplanApi.createFloor({ branchId: Number(data.branchId), name: data.name });
+
             toast.success(`Zone "${data.name}" créée avec succès`);
             setOpen(false);
             onSuccess(); // Rafraîchir la liste des étages
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || "Erreur lors de la création de l'étage");
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Erreur lors de la création de l'étage"));
         } finally {
             setLoading(false);
         }
@@ -58,16 +74,15 @@ export function AddFloorModal({ onSuccess }: AddFloorModalProps) {
                     </DialogTitle>
                 </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="space-y-8 mt-6">
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 mt-6">
                     <div className="space-y-3">
                         <Label className="text-[10px] font-black uppercase tracking-[0.2em] ml-1 text-stone-400">
                             Nom de l'espace
                         </Label>
-                        <Input 
-                            name="name" 
-                            placeholder="Ex: Terrasse Vue Mer, Salon Privé..." 
-                            className="h-14 rounded-2xl bg-stone-50 border-none px-5 font-bold text-stone-800 placeholder:text-stone-300 focus-visible:ring-2 focus-visible:ring-orange-500/20" 
-                            required 
+                        <Input
+                            {...register("name", { required: true })}
+                            placeholder="Ex: Terrasse Vue Mer, Salon Privé..."
+                            className="h-14 rounded-2xl bg-stone-50 border-none px-5 font-bold text-stone-800 placeholder:text-stone-300 focus-visible:ring-2 focus-visible:ring-orange-500/20"
                             autoFocus
                         />
                         <p className="text-[10px] text-stone-400 italic ml-1">
@@ -75,10 +90,28 @@ export function AddFloorModal({ onSuccess }: AddFloorModalProps) {
                         </p>
                     </div>
 
+                    <div className="space-y-3">
+                        <Label className="text-[10px] font-black uppercase tracking-[0.2em] ml-1 text-stone-400">
+                            Succursale
+                        </Label>
+                        <Select onValueChange={(v) => setValue("branchId", v)} value={watch("branchId")}>
+                            <SelectTrigger className="h-14 rounded-2xl bg-stone-50 border-none px-5 font-bold text-stone-800">
+                                <SelectValue placeholder="Choisir une succursale" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-2xl border-none shadow-xl">
+                                {branches.map((branch) => (
+                                    <SelectItem key={branch.id} value={String(branch.id)} className="font-bold">
+                                        {branch.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
                     <DialogFooter>
-                        <Button 
-                            type="submit" 
-                            disabled={loading} 
+                        <Button
+                            type="submit"
+                            disabled={loading}
                             className="w-full h-14 rounded-2xl font-black uppercase tracking-[0.2em] bg-stone-900 hover:bg-stone-800 text-white shadow-lg shadow-stone-200 transition-all active:scale-95 disabled:opacity-70"
                         >
                             {loading ? (

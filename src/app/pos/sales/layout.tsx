@@ -9,9 +9,11 @@ import {usePathname, useRouter} from 'next/navigation';
 import {useUIStore} from '@/src/store/use-ui-store';
 import {Button} from '@/components/ui/button';
 import {toast} from 'sonner';
-import api from '@/src/lib/axios';
+import * as identityApi from '@/src/lib/api/identity';
 import {SecurityModal} from '@/components/layout/SecurityModal';
 import {CashSyncProvider} from "../../../providers/CashSyncProvider";
+import {AxiosError} from 'axios';
+import {RouteGuard} from '@/components/shared/RouteGuard';
 
 const NAV_ITEMS = [
   { label: 'Vente', icon: LayoutGrid, href: '/pos/sales/order' },
@@ -48,17 +50,18 @@ export default function POSLayout({ children }: { children: React.ReactNode }) {
 
   const updatePin = async (newPin: string) => {
     if (newPin.length !== 4) {
-      return toast.error("Le code PIN doit comporter 4 chiffres");
+      toast.error("Le code PIN doit comporter 4 chiffres");
+      return;
     }
     try {
-      const response = await api.post('api/auth/update-pin', { pin: newPin });
+      await identityApi.updatePin(newPin);
       toast.success("Code PIN modifié !");
-      return response.data;
-    } catch (error: any) {
-      if (error.response?.status === 422) {
-        const firstError = Object.values(error.response.data.errors ?? {})[0] as string | undefined;
+    } catch (error) {
+      const axiosError = error instanceof AxiosError ? error : null;
+      if (axiosError?.response?.status === 422) {
+        const firstError = Object.values(axiosError.response.data.errors ?? {})[0] as string | undefined;
         toast.error(firstError || "Format de PIN invalide");
-      } else if (error.response?.status === 401) {
+      } else if (axiosError?.response?.status === 401) {
         toast.error("Session expirée, veuillez vous reconnecter");
       } else {
         toast.error("Impossible de modifier le PIN. Réessayez plus tard.");
@@ -69,18 +72,15 @@ export default function POSLayout({ children }: { children: React.ReactNode }) {
 
   const updatePassword = async (oldPass: string, newPass: string) => {
     if (newPass.length < 8) {
-      return toast.error("Le nouveau mot de passe doit faire au moins 8 caractères.");
+      toast.error("Le nouveau mot de passe doit faire au moins 8 caractères.");
+      return;
     }
     try {
-      const response = await api.post('api/auth/update-password', {
-        old_password: oldPass,
-        new_password: newPass,
-      });
+      await identityApi.updatePassword(oldPass, newPass);
       toast.success("Mot de passe modifié avec succès !");
-      return response.data;
-    } catch (error: any) {
-      const status = error.response?.status;
-      const message = error.response?.data?.message;
+    } catch (error) {
+      const status = error instanceof AxiosError ? error.response?.status : undefined;
+      const message = error instanceof AxiosError ? error.response?.data?.message : undefined;
       if (status === 422) {
         toast.error(message || "Erreur de validation des données.");
       } else if (status === 401) {
@@ -96,7 +96,7 @@ export default function POSLayout({ children }: { children: React.ReactNode }) {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
     try {
-      await api.post('api/auth/logout');
+      await identityApi.logout();
       toast.success("Déconnexion réussie");
       router.push('/login');
     } catch {
@@ -108,6 +108,7 @@ export default function POSLayout({ children }: { children: React.ReactNode }) {
   };
 
   return (
+    <RouteGuard>
       <CashSyncProvider>
         <div className="flex flex-col h-screen bg-background overflow-hidden">
 
@@ -185,5 +186,6 @@ export default function POSLayout({ children }: { children: React.ReactNode }) {
           />
         </div>
       </CashSyncProvider>
+    </RouteGuard>
   );
 }

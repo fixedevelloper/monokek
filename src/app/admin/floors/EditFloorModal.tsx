@@ -7,8 +7,9 @@ import {Input} from "@/components/ui/input";
 import {Button} from "@/components/ui/button";
 import {Layers, Loader2, Save} from "lucide-react";
 import {toast} from "sonner";
-import api from "@/src/lib/axios";
+import * as floorplanApi from "@/src/lib/api/floorplan";
 import {Floor} from "@/src/types/tables";
+import {getErrorMessage} from "@/src/lib/errors";
 
 interface EditFloorModalProps {
     floor: Floor | null;
@@ -26,17 +27,15 @@ export function EditFloorModal({ floor, open, onOpenChange, onSuccess }: EditFlo
         setLoading(true);
 
         const formData = new FormData(e.currentTarget);
-        const data = {
-            name: formData.get('name'),
-        };
+        const name = String(formData.get('name') ?? '');
 
         try {
-            await api.put(`/api/pos/floors/${floor.id}`, data);
+            await floorplanApi.updateFloor(floor.id, { name });
             toast.success("Zone renommée avec succès");
             onOpenChange(false);
             onSuccess();
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || "Erreur lors de la modification");
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Erreur lors de la modification"));
         } finally {
             setLoading(false);
         }

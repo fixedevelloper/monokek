@@ -1,12 +1,16 @@
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@/components/ui/dialog";
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 import {useEffect, useState} from "react";
-import {Product} from "@/src/types/menus";
+import {Product, ModifierItem} from "@/src/types/menus";
 import {ScrollArea} from "@/components/ui/scroll-area";
 import {formatCurrency} from "@/src/lib/formatCurrency";
 import {cn} from "@/lib/utils";
 import {Button} from "@/components/ui/button";
 import {Check, Minus, Plus} from "lucide-react";
+
+interface SelectedModifierItem extends ModifierItem {
+  quantity: number;
+}
 
 export function ModifierModal({
                                 product,
@@ -17,11 +21,11 @@ export function ModifierModal({
   product: Product | null,
   isOpen: boolean,
   onClose: () => void,
-  onConfirm: (selectedModifiers: any[]) => void
+  onConfirm: (selectedModifiers: SelectedModifierItem[]) => void
 }) {
   // On sépare la logique : un seul choix gratuit, et des suppléments multiples
-  const [baseChoice, setBaseChoice] = useState<any | null>(null);
-  const [supplements, setSupplements] = useState<any[]>([]);
+  const [baseChoice, setBaseChoice] = useState<ModifierItem | null>(null);
+  const [supplements, setSupplements] = useState<SelectedModifierItem[]>([]);
 
   // Reset quand on change de produit
   useEffect(() => {
@@ -34,14 +38,14 @@ export function ModifierModal({
   if (!product || !product.modifiers) return null;
 
   // Logique pour les suppléments (multiples)
-  const toggleSupplement = (item: any) => {
+  const toggleSupplement = (item: SelectedModifierItem) => {
     setSupplements(prev =>
         prev.find(i => i.id === item.id)
             ? prev.filter(i => i.id !== item.id)
             : [...prev, item]
     );
   };
-  const updateSupplementQty = (item: any, delta: number) => {
+  const updateSupplementQty = (item: ModifierItem, delta: number) => {
     setSupplements(prev => {
       const existing = prev.find(i => i.id === item.id);
 
@@ -61,7 +65,7 @@ export function ModifierModal({
     });
   };
   const handleFinalize = () => {
-    const finalSelection = [];
+    const finalSelection: SelectedModifierItem[] = [];
 
     // 1. Gérer l'accompagnement gratuit (Tab 1)
     if (baseChoice) {

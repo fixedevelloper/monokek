@@ -18,6 +18,7 @@ export interface PrinterFormValues {
 }
 export interface Printer extends PrinterFormValues {
     id: number | string;
+    status?: 'online' | 'offline';
 }
 export interface Modifier {
     id: number;
@@ -28,20 +29,21 @@ export interface Modifier {
 export interface Product {
     id: number;
     name: string;
-    sku: string;
-    description: string;
+    sku: string | null;
+    description: string | null;
     price: number;
     incentive_amount:number;
     formatted_price: string;
-    category: Category;
+    // Le catalogue Spring n'expose que categoryId/categoryName sur ProductDto,
+    // pas une Category complète — voir lib/api/catalog.ts.
+    category: { id: number; name: string };
     modifiers: Modifier[];
     is_active: boolean;
     track_stock: boolean;
     stock_count: number;
     alert_stock: number;
     type: string;
-    image_url: string;
-    created_at: string;
+    image_url: string | null;
 }
 
 export interface Category {
@@ -52,7 +54,6 @@ export interface Category {
     description?: string;
     icon?: string;
     is_active: boolean;
-    created_at: string;
 }
 
 
@@ -78,37 +79,37 @@ export interface OrderItemModifier {
 
 export interface OrderItem {
     id: number;
-    product_id: number;
+    // Le catalogue Spring n'expose product/variant que sous forme de référence imbriquée
+    // {id, name} sur OrderDto.ItemDto — pas de product_id/variant_id/variant_name à plat.
     product: {
         id: number;
         name: string;
-    }; // Vient de la Resource
-    variant_id?: number | null;
-    variant_name?: string | null;
+    };
+    variant?: {
+        id: number;
+        name: string;
+    } | null;
     qty: number;
     price: number;
     total: number;
     status: 'pending' | 'preparing' | 'served' | 'cancelled';
     modifiers?: OrderItemModifier[];
+    formatted_total?: string;
 }
 
 export interface Round {
     id: number;
-    order_id: number;
     round_number: number;
     status: string;
-    sent_at: string;
-    sent_at_formatted?: string; // Formaté par le Resource Laravel (ex: "14:30")
+    note?: string | null;
+    sent_at: string | null;
     items?: OrderItem[];
+    total_round?: number;
 }
 export interface Order {
     id: number;
     uuid: string;
     reference: string;
-    branch_id: number;
-    table_id: number | null;
-    user_id: number;
-    customer_id?: number | null;
 
     type: OrderType;
     status: OrderStatus;
@@ -122,12 +123,13 @@ export interface Order {
         formatted_total: string;
     };
 
-    // Relations
+    // Relations — OrderDto n'expose que des références imbriquées, pas de
+    // branch_id/table_id/user_id/customer_id à plat (aucun composant ne les lisait).
     rounds?: Round[];
     table?: {
         id: number;
         name: string;
-        floor_name?: string;
+        status?: string;
     };
     waiter?: {
         id: number;
@@ -137,13 +139,38 @@ export interface Order {
         id: number;
         name: string;
     };
-    customer?: {
-        id: number;
-        name: string;
-    };
     note?: string | null;
-    created_at: string; // Format "H:i"
+    created_at: string; // Vient de OrderDto.time (format "H:i")
     date: string;       // Format "d/m/Y"
+}
+
+export interface Reservation {
+    id: number;
+    pickup_date: string;
+    guests_count: number;
+    manager_notes: string | null;
+    reservation_status: string;
+    customer: { id: number; name: string; phone: string } | null;
+    // order.items est synthétisé (flatMap des rounds) pour les composants qui
+    // affichent la commande de réservation à plat — voir lib/api/ordering.ts.
+    order: (Order & { items: OrderItem[] }) | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface Commission {
+    id: number;
+    amount: number;
+    percentage: number | null;
+    type: string;
+    status: string;
+    created_at: string;
+    waiter_id: number;
+    waiter_name: string;
+    order_reference: string;
+    product_name: string;
+    is_incentive: boolean;
+    status_label: string;
 }
 
 // Utile pour la création d'une commande (Payload API)

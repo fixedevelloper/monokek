@@ -6,10 +6,21 @@ import {Input} from "@/components/ui/input";
 import {Separator} from "@/components/ui/separator";
 import {ChevronRight, Minus, Plus, Save} from "lucide-react";
 import {toast} from "sonner";
-import api from "../../../lib/axios";
+import * as orderingApi from "../../../lib/api/ordering";
 import {useReservationStore} from "../../../store/useReservationStore";
+import {Category, Product, Reservation} from "@/src/types/menus";
 
-export function ReservationSheet({ open, onOpenChange, categories, reservation = null, onRefresh }: any) {
+type CategoryWithProducts = Category & { products: Product[] };
+
+interface ReservationSheetProps {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    categories: CategoryWithProducts[] | undefined;
+    reservation?: Reservation | null;
+    onRefresh: () => void;
+}
+
+export function ReservationSheet({ open, onOpenChange, categories, reservation = null, onRefresh }: ReservationSheetProps) {
     const [loading, setLoading] = useState(false);
 
     // Accès au store Zustand
@@ -20,7 +31,7 @@ export function ReservationSheet({ open, onOpenChange, categories, reservation =
         setExpandedCategory(expandedCategory === id ? null : id);
     };
     useEffect(() => {
-        if (open && categories?.length > 0 && !expandedCategory) {
+        if (open && categories && categories.length > 0 && !expandedCategory && categories[0].id != null) {
             setExpandedCategory(categories[0].id);
         }
     }, [open, categories]);
@@ -36,11 +47,21 @@ export function ReservationSheet({ open, onOpenChange, categories, reservation =
 
         setLoading(true);
         try {
-            const payload = { ...formData, items: selectedItems, total_amount: getTotal() ,order_id:null};
+            const payload = {
+                customerName: formData.customer_name,
+                customerPhone: formData.customer_phone,
+                pickupDate: formData.pickup_date,
+                guestsCount: Number(formData.guests_count) || undefined,
+                managerNotes: formData.manager_notes || undefined,
+                items: selectedItems.map((item) => ({
+                    productId: item.id ?? item.product_id,
+                    quantity: item.quantity,
+                })),
+            };
             if (reservation) {
-                await api.put(`/api/admin/reservations/${reservation.id}`, payload);
+                await orderingApi.updateReservation(reservation.id, payload);
             } else {
-                await api.post("/api/admin/reservations", payload);
+                await orderingApi.createReservation(payload);
             }
             toast.success("Opération réussie !");
             onRefresh();
@@ -101,7 +122,7 @@ export function ReservationSheet({ open, onOpenChange, categories, reservation =
                                 <Input type="number" className="h-12 rounded-xl bg-slate-50 border-none font-bold"
                                        placeholder="Nombre de personnes"
                                     value={formData.guests_count}
-                                    onChange={e => setField("guests_count", e.target.value)}
+                                    onChange={e => setField("guests_count", Number(e.target.value))}
                                 />
                             </div>
                         </div>
@@ -112,11 +133,11 @@ export function ReservationSheet({ open, onOpenChange, categories, reservation =
                         <div className="space-y-6">
                             <h3 className="text-sm font-black uppercase tracking-widest text-primary italic">Sélection des plats</h3>
 
-                            {categories?.map((cat: any) => {
+                            {categories?.map((cat: CategoryWithProducts) => {
                                 const isOpen = expandedCategory === cat.id;
 
                                 // Calcul du nombre total d'articles sélectionnés dans cette catégorie
-                                const countInCat = cat.products?.reduce((acc: number, p: any) => {
+                                const countInCat = cat.products?.reduce((acc: number, p: Product) => {
                                     const found = selectedItems.find(i => (i.id === p.id || i.product_id === p.id));
                                     return acc + (found ? found.quantity : 0);
                                 }, 0);
@@ -126,7 +147,7 @@ export function ReservationSheet({ open, onOpenChange, categories, reservation =
                                         {/* Header de la catégorie - CLIQUABLE */}
                                         <button
                                             type="button"
-                                            onClick={() => toggleCategory(cat.id)}
+                                            onClick={() => cat.id != null && toggleCategory(cat.id)}
                                             className="flex items-center justify-between w-full p-3 hover:bg-white rounded-2xl transition-all group"
                                         >
                                             <div className="flex items-center gap-3">
@@ -149,7 +170,7 @@ export function ReservationSheet({ open, onOpenChange, categories, reservation =
                                         {/* Liste des produits - AFFICHAGE CONDITIONNEL */}
                                         {isOpen && (
                                             <div className="grid grid-cols-1 gap-2 px-2 pb-2 animate-in slide-in-from-top-2 duration-300">
-                                                {cat.products?.map((prod: any) => {
+                                                {cat.products?.map((prod: Product) => {
                                                     const itemInCart = selectedItems.find(i => (i.id === prod.id || i.product_id === prod.id));
                                                     return (
                                                         <div
@@ -204,7 +225,7 @@ export function ReservationSheet({ open, onOpenChange, categories, reservation =
                         <div className="flex justify-between items-center px-2">
                             <span className="text-xs font-black uppercase text-slate-400">Total Réservation</span>
                             <span className="text-2xl font-black text-slate-950">
-                {selectedItems.reduce((acc, item) => acc + (item.price || item.unit_price) * item.quantity, 0)} F
+                {selectedItems.reduce((acc, item) => acc + item.price * item.quantity, 0)} F
               </span>
                         </div>
                         <Button onClick={handleSave} disabled={loading} className="w-full h-16 rounded-[2rem] font-black text-lg gap-3">

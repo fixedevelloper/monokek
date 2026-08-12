@@ -10,15 +10,20 @@ import {
   X, Printer, Hash, User, User2,
   Download, Clock
 } from "lucide-react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { useExport } from "../../../hooks/useExport";
+import { Order, OrderItem, OrderItemModifier, Round } from "@/src/types/menus";
+import type { jsPDF } from "jspdf";
 
 // --- Interfaces ---
 interface OrderDetailsModalProps {
-  order: any;
+  order: Order | null;
   isOpen: boolean;
   onClose: () => void;
+}
+
+// jspdf-autotable étend l'instance jsPDF à l'exécution sans déclarer de types.
+interface JsPDFWithAutoTable extends jsPDF {
+  lastAutoTable: { finalY: number };
 }
 
 export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalProps) {
@@ -27,7 +32,14 @@ export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalP
   if (!order) return null;
 
   // Modifié pour sortir un vrai format ticket de caisse 80mm
-  const handlePrintThermal = (order: any) => {
+  // Chargés à la demande : jsPDF/autoTable ne pèsent que sur le clic "Imprimer",
+  // pas sur le chargement de la page historique qui monte cette modale.
+  const handlePrintThermal = async (order: Order) => {
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
+
     const doc = new jsPDF({ unit: "mm", format: [80, 200] });
     const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -39,22 +51,22 @@ export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalP
     doc.text(`REF: ${order.reference}`, pageWidth / 2, 15, { align: "center" });
 
     // Aplatissement des rounds pour récupérer la liste unique des articles consommés
-    const allItems = order.rounds?.flatMap((r: any) => r.items || []) || [];
+    const allItems: OrderItem[] = order.rounds?.flatMap((r: Round) => r.items || []) || [];
 
     autoTable(doc, {
       startY: 25,
       margin: { left: 2, right: 2 },
       head: [['Qté', 'Désignation', 'Total']],
-      body: allItems.map((i: any) => [
+      body: allItems.map((i: OrderItem) => [
         i.qty,
-        i.product?.name || i.name,
+        i.product?.name ?? "",
         `${new Intl.NumberFormat('fr-CM').format(i.total)} F`
       ]),
       styles: { fontSize: 7, cellPadding: 1 },
       headStyles: { fillColor: [15, 23, 42] } // Couleur ardoise/slate-900 uniforme
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    const finalY = (doc as JsPDFWithAutoTable).lastAutoTable.finalY + 10;
     doc.setFontSize(10);
     doc.text(`TOTAL: ${order.amounts?.formatted_total || order.amounts?.total}`, pageWidth - 5, finalY, { align: "right" });
 
@@ -63,12 +75,12 @@ export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalP
   };
 
   // Export PDF classique A4 via ton hook personnalisé
-  const handleExportA4 = (order: any) => {
-    const allItems = order.rounds?.flatMap((r: any) => r.items || []) || [];
+  const handleExportA4 = (order: Order) => {
+    const allItems: OrderItem[] = order.rounds?.flatMap((r: Round) => r.items || []) || [];
     const columns = ['Qté', 'Désignation', 'Total'];
-    const exportData = allItems.map((i: any) => [
+    const exportData = allItems.map((i: OrderItem) => [
       i.qty,
-      i.product?.name || i.name,
+      i.product?.name ?? "",
       i.total
     ]);
 
@@ -137,7 +149,7 @@ export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalP
 
               <ScrollArea className="h-[500px] pr-4">
                 <div className="space-y-8 ml-2">
-                  {order.rounds?.map((round: any, idx: number) => (
+                  {order.rounds?.map((round: Round, idx: number) => (
                       <div key={round.id || idx} className="relative pl-8 border-l-2 border-slate-200 dark:border-slate-800">
                         {/* Point sur la timeline */}
                         <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-primary border-4 border-slate-50 dark:border-slate-950 shadow-sm" />
@@ -149,24 +161,26 @@ export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalP
                         </span>
                           </div>
                           <span className="text-[10px] font-bold text-slate-400 italic">
-                        {round.sent_at_formatted || 'Envoyé'}
+                        {round.sent_at
+                            ? new Date(round.sent_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                            : 'Envoyé'}
                       </span>
                         </div>
 
                         <div className="grid gap-3">
-                          {round.items?.map((item: any, itemIdx: number) => (
+                          {round.items?.map((item: OrderItem, itemIdx: number) => (
                               <div key={item.id || itemIdx} className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 hover:shadow-md transition-shadow">
                                 <div className="flex gap-4 items-center">
                                   <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center font-black text-xs text-primary">
                                     {item.qty}
                                   </div>
                                   <div>
-                                    <p className="font-black text-sm uppercase leading-tight tracking-tight">{item.product?.name || item.name}</p>
+                                    <p className="font-black text-sm uppercase leading-tight tracking-tight">{item.product?.name}</p>
                                     {item.modifiers && item.modifiers.length > 0 && (
                                         <div className="flex flex-wrap gap-2 mt-1">
-                                          {item.modifiers.map((mod: any, i: number) => (
+                                          {item.modifiers.map((mod: OrderItemModifier, i: number) => (
                                               <span key={i} className="text-[9px] font-bold text-orange-500 uppercase">
-                                      + {mod.modifier_item?.name || mod.name}
+                                      + {mod.name}
                                     </span>
                                           ))}
                                         </div>

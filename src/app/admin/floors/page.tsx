@@ -7,8 +7,10 @@ import {Button} from "@/components/ui/button";
 import {Card, CardContent} from "@/components/ui/card";
 import {Skeleton} from "@/components/ui/skeleton";
 import {toast} from 'sonner';
-import api from '@/src/lib/axios';
+import * as floorplanApi from '@/src/lib/api/floorplan';
+import * as companyApi from '@/src/lib/api/company';
 import {Floor} from '@/src/types/tables';
+import {Branch} from '@/src/types/company';
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from "@/components/ui/dropdown-menu";
 import {AddFloorModal} from './AddFloorModal';
 import {EditFloorModal} from './EditFloorModal';
@@ -19,6 +21,7 @@ export default function AdminFloorsPage() {
     const [loading, setLoading] = useState(true);
 const [editingFloor, setEditingFloor] = useState<Floor | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [branches, setBranches] = useState<Branch[]>([]);
 
     const handleEditClick = (floor: Floor) => {
         setEditingFloor(floor);
@@ -27,8 +30,8 @@ const [editingFloor, setEditingFloor] = useState<Floor | null>(null);
     const fetchFloors = async () => {
         try {
             setLoading(true);
-            const res = await api.get('/api/pos/floors');
-            setFloors(res.data.data || res.data);
+            const floors = await floorplanApi.listFloors();
+            setFloors(floors);
         } catch (error) {
             toast.error("Erreur lors du chargement des zones");
         } finally {
@@ -37,6 +40,7 @@ const [editingFloor, setEditingFloor] = useState<Floor | null>(null);
     };
 
     useEffect(() => { fetchFloors(); }, []);
+    useEffect(() => { companyApi.listBranches().then(setBranches).catch(() => {}); }, []);
 
     return (
         <div className="flex flex-col gap-10 p-8 max-w-5xl mx-auto min-h-screen text-stone-900">
@@ -65,7 +69,7 @@ const [editingFloor, setEditingFloor] = useState<Floor | null>(null);
                         <Button variant="outline" size="icon" onClick={fetchFloors} className="h-12 w-12 rounded-2xl">
                             <RefreshCcw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
                         </Button>
-                        <AddFloorModal onSuccess={fetchFloors} />
+                        <AddFloorModal onSuccess={fetchFloors} branches={branches} />
                     </div>
                 </div>
             </header>
@@ -91,6 +95,23 @@ const [editingFloor, setEditingFloor] = useState<Floor | null>(null);
 }
 
 function FloorItem({ floor, onEdit, onRefresh }: { floor: Floor, onEdit: () => void, onRefresh: () => void }) {
+    const router = useRouter();
+    const handleDelete = async () => {
+        const tableCount = floor.tables?.length ?? 0;
+        const warning = tableCount > 0
+            ? `Supprimer "${floor.name}" supprimera aussi ses ${tableCount} table(s). Continuer ?`
+            : `Supprimer la zone "${floor.name}" ?`;
+        if (!confirm(warning)) return;
+
+        try {
+            await floorplanApi.deleteFloor(floor.id);
+            toast.success('Zone supprimée');
+            onRefresh();
+        } catch (error) {
+            toast.error('Impossible de supprimer cette zone');
+        }
+    };
+
     return (
         <Card className="group border-stone-200 hover:border-stone-400 transition-all rounded-[2rem] overflow-hidden bg-white">
             <CardContent className="p-6 flex items-center justify-between">
@@ -109,7 +130,11 @@ function FloorItem({ floor, onEdit, onRefresh }: { floor: Floor, onEdit: () => v
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <Button variant="ghost" className="hidden sm:flex text-[10px] font-black uppercase tracking-widest text-stone-400 hover:text-stone-900">
+                    <Button
+                        variant="ghost"
+                        onClick={() => router.push(`/admin/tables?floor=${floor.id}`)}
+                        className="hidden sm:flex text-[10px] font-black uppercase tracking-widest text-stone-400 hover:text-stone-900"
+                    >
                         Voir le plan
                     </Button>
                     
@@ -126,7 +151,8 @@ function FloorItem({ floor, onEdit, onRefresh }: { floor: Floor, onEdit: () => v
                                 <Pencil size={14} className="text-stone-500" />
                                 <span className="font-bold text-xs uppercase tracking-wider">Renommer</span>
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
+                                onClick={handleDelete}
                                 className="gap-2 py-3 cursor-pointer rounded-lg text-red-600 focus:bg-red-50 focus:text-red-600"
                             >
                                 <Trash2 size={14} />

@@ -1,7 +1,8 @@
 // src/lib/storage.ts
 import {isTauri} from "./axios";
+import type {Store} from "@tauri-apps/plugin-store";
 
-let store: any = null;
+let store: Store | null = null;
 
 export const initStore = async () => {
     try {
@@ -19,7 +20,7 @@ export const initStore = async () => {
     }
 };
 
-export const saveLocalSettings = async (settings: any) => {
+export const saveLocalSettings = async (settings: Record<string, unknown>) => {
     if (store) {
         await store.set("settings", settings);
         await store.save();

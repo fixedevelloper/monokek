@@ -11,18 +11,34 @@ import {formatCurrency} from '@/src/lib/formatCurrency';
 import {cn} from '@/lib/utils';
 import {Order, OrderStatus} from '@/src/types/menus';
 import api from '@/src/lib/axios';
+import {getErrorMessage} from '@/src/lib/errors';
+import * as orderingApi from '@/src/lib/api/ordering';
+import * as cashierApi from '@/src/lib/api/cashier';
+import {CashSummary, CloseReport, PaymentBreakdown} from '@/src/types/cashier';
 import {useUIStore} from '@/src/store/use-ui-store';
 import {toast} from 'sonner';
 import {useCashStore} from '@/src/store/use-cash-store';
 import CashOpenModal from '../CashOpenModal';
 import {useRouter} from 'next/navigation';
-import {useEcho} from '@/src/hooks/useEcho';
+import {useNotifications} from '@/src/providers/NotificationsProvider';
 import { Layers, Clock, User } from 'lucide-react';
 import {OrderItem} from "../../../../types/menus";
+import {useQuery, useQueryClient} from '@tanstack/react-query';
 
 export default function PosSalesPage() {
-    const [orders, setOrders] = useState<Order[]>([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
+    const {
+        data: orders = [],
+        isLoading: isOrdersLoading,
+    } = useQuery({
+        queryKey: ['pos-sales-orders'],
+        queryFn: () => orderingApi.historyPos(),
+    });
+    const refetchOrders = () => queryClient.invalidateQueries({queryKey: ['pos-sales-orders']});
+    // Distinct du chargement de la liste des ventes : handlePreviewCloture ne
+    // touche pas orders, seulement le résumé de caisse affiché dans le modal de clôture.
+    const [isCashSummaryLoading, setIsCashSummaryLoading] = useState(false);
+    const loading = isOrdersLoading || isCashSummaryLoading;
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedSale, setSelectedSale] = useState<Order | null>(null);
     const { openPayment } = useUIStore();
@@ -30,102 +46,57 @@ export default function PosSalesPage() {
     const [closingAmount, setClosingAmount] = useState("");
     const [note, setNote] = useState("");
     const [showReport, setShowReport] = useState(false);
-    const [lastReport, setLastReport] = useState(null);
+    const [lastReport, setLastReport] = useState<CloseReport | null>(null);
     const router = useRouter();
     const { isOpen } = useCashStore();
 
-    const [previewData, setPreviewData] = useState<any>(null);
-    const echo = useEcho();
+    const [previewData, setPreviewData] = useState<CashSummary | null>(null);
+    const {on} = useNotifications();
 
-    // Merge/insertion générique d'une commande dans la liste + sync du détail ouvert,
-    // utilisée par les 3 events (order.created, order.updated, round.added) pour éviter
-    // que la logique de sync soit dupliquée (et donc désynchronisée comme avant).
-    const upsertOrderEverywhere = (updatedOrder: any) => {
-        if (!updatedOrder?.id) return;
-
-        setOrders(prev => {
-            const exists = prev.some(order => order.id === updatedOrder.id);
-            if (exists) {
-                return prev.map(order => order.id === updatedOrder.id ? updatedOrder : order);
-            }
-            return [updatedOrder, ...prev];
-        });
-
-        // Sync du détail ouvert, QUEL QUE SOIT le cas (nouvelle commande ou commande
-        // existante mise à jour) : si l'utilisateur a ce ticket ouvert, il doit voir
-        // le nouveau round apparaître sans avoir à recliquer sur la ligne.
-        setSelectedSale(currentSelected => {
-            if (currentSelected && currentSelected.id === updatedOrder.id) {
-                return updatedOrder;
-            }
-            return currentSelected;
-        });
-    };
-
+    // Le payload SSE est volontairement léger (ids seulement, pas l'order complet
+    // avec sa table/ses rounds) — chaque event déclenche donc un refetch de la liste
+    // plutôt qu'un patch local ; l'effet sur `orders` ci-dessous resynchronise
+    // selectedSale si le ticket actuellement ouvert a changé.
     useEffect(() => {
-        if (!echo) return;
-
-        const channel = echo.channel('orders');
-
-        // 1. Nouvelle commande créée
-        channel.listen('.order.created', (newOrder: any) => {
-            upsertOrderEverywhere(newOrder);
-            toast.success(`Commande Table ${newOrder.table?.name || 'N/A'} créée !`);
+        const offCreated = on('order.created', (payload) => {
+            refetchOrders();
+            toast.success(`Commande ${payload?.reference ?? ''} créée !`.trim());
         });
 
-        // 2. Round ajouté à une commande déjà existante (RoundAddedToOrder côté backend)
-        // Payload différent de order.created/order.updated : { order: {...}, round: {...} }
-        channel.listen('.round.added', (payload: any) => {
-            const updatedOrder = payload?.order;
-            if (!updatedOrder) return;
-
-            upsertOrderEverywhere(updatedOrder);
-
-            const roundNumber = payload?.round?.round_number;
-            toast.success(
-                `Round ${roundNumber ?? ''} ajouté — Table ${updatedOrder.table?.name || 'N/A'}`.trim()
-            );
+        const offTicket = on('ticket.created', () => {
+            refetchOrders();
         });
 
-        // 3. Mise à jour de statut
-        channel.listen('.order.updated', (updatedOrder: any) => {
-            upsertOrderEverywhere(updatedOrder);
-            toast.info(`Commande #${updatedOrder.reference} : ${updatedOrder.status_label}`);
+        const offUpdated = on('order.updated', (payload) => {
+            refetchOrders();
+            toast.info(`Commande #${payload?.orderId ?? ''} : ${payload?.newStatus ?? ''}`.trim());
         });
 
         return () => {
-            channel.stopListening('.order.created');
-            channel.stopListening('.round.added');
-            channel.stopListening('.order.updated');
+            offCreated();
+            offTicket();
+            offUpdated();
         };
-    }, [echo]);
+    }, [on]);
 
     const handlePreviewCloture = async () => {
-        setLoading(true);
+        setIsCashSummaryLoading(true);
         try {
-            const response = await api.get('api/cash/current-summary');
-            setPreviewData(response.data);
+            const summary = await cashierApi.currentSummary();
+            setPreviewData(summary);
             setIsClosing(true);
         } catch (error) {
             toast.error("Impossible de récupérer le résumé de caisse");
         } finally {
-            setLoading(false);
+            setIsCashSummaryLoading(false);
         }
     };
 
-    const fetchOrders = async () => {
-        try {
-            setLoading(true);
-            const res = await api.get("/api/pos/orders/history");
-            setOrders(res.data.data);
-        } catch (error) {
-            console.error("Erreur historique:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => { fetchOrders(); }, []);
+    // Resynchronise le détail ouvert avec la version fraîche à chaque refetch
+    // (SSE ou invalidation), si le ticket sélectionné existe toujours dans la liste.
+    useEffect(() => {
+        setSelectedSale(current => (current ? orders.find(o => o.id === current.id) ?? current : current));
+    }, [orders]);
 
     const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string }> = {
         draft: { label: "Brouillon", color: "bg-slate-100 text-slate-600" },
@@ -155,7 +126,7 @@ export default function PosSalesPage() {
         order.amounts.total.toString().includes(searchTerm)
     );
 
-    const handlePrint = async (sale: any) => {
+    const handlePrint = async (sale: Order | null) => {
         if (!sale) {
             toast.error("Aucune vente sélectionnée");
             return;
@@ -164,33 +135,20 @@ export default function PosSalesPage() {
         const toastId = toast.loading("Préparation de l'impression...");
 
         try {
-            await api.post(`/api/sales/${sale.id}/reprint`, {
-                type: 'receipt'
-            });
+            await api.post(`/api/sales/${sale.id}/reprint`);
 
             toast.success("Demande d'impression envoyée", { id: toastId });
-
-            /**
-             * Note : Vous n'avez pas besoin d'appeler usePrint ici.
-             * Votre hook useEcho (qui écoute le canal de la branche)
-             * captera automatiquement le message et lancera l'impression
-             * physique via le plugin thermal.
-             */
-
         } catch (error) {
             console.error("Erreur commande impression:", error);
-            toast.error("Impossible de lancer l'impression", { id: toastId });
+            toast.error(getErrorMessage(error, "Impossible de lancer l'impression"), { id: toastId });
         }
     };
 
     const confirmFinalClose = async () => {
         try {
-            const response = await api.post('api/cash/close', {
-                closing_amount: parseFloat(closingAmount),
-                note: note
-            });
+            const report = await cashierApi.close(parseFloat(closingAmount), note);
 
-            setLastReport(response.data.report);
+            setLastReport(report);
             setShowReport(true);
 
             setIsClosing(false);
@@ -311,7 +269,11 @@ export default function PosSalesPage() {
                                                 </div>
                                                 <div className="flex items-center gap-1 text-muted-foreground">
                                                     <Clock size={12} />
-                                                    <span className="text-[10px] font-bold uppercase">{round.sent_at_formatted || 'Envoyé'}</span>
+                                                    <span className="text-[10px] font-bold uppercase">
+                                                        {round.sent_at
+                                                            ? new Date(round.sent_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                                                            : 'Envoyé'}
+                                                    </span>
                                                 </div>
                                             </div>
 
@@ -424,7 +386,7 @@ export default function PosSalesPage() {
                             </div>
 
                             <div className="bg-stone-50 rounded-2xl p-4 space-y-2 border border-stone-100 font-mono text-sm">
-                                {previewData.payments_detail.map((p: any, i: number) => (
+                                {previewData.payments_detail.map((p: PaymentBreakdown, i: number) => (
                                     <div key={i} className="flex justify-between">
                                         <span className="text-stone-500">{p.name}</span>
                                         <span className="font-bold">{Number(p.total).toLocaleString()} F</span>

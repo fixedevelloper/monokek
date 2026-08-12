@@ -11,7 +11,7 @@ import {Input} from "@/components/ui/input";
 import {Badge} from "@/components/ui/badge";
 import {Card} from "@/components/ui/card";
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow,} from "@/components/ui/table";
-import api from "@/src/lib/axios";
+import * as orderingApi from "@/src/lib/api/ordering";
 import {Order} from "@/src/types/menus";
 import {OrderDetailsModal} from "./OrderDetailsModal";
 
@@ -45,22 +45,17 @@ export default function AdminHistoryPage() {
   // 2. Utilisation de useQuery
   const { data: orders = [], isLoading, isFetching } = useQuery({
     queryKey: ['orders-history', searchQuery,appliedRange.from, appliedRange.to],
-    queryFn: async () => {
-      const res = await api.get('/api/admin/orders/history', {
-        params: {
-          search: searchQuery,
-          start_date: appliedRange.from
+    queryFn: () => orderingApi.historyAdmin({
+      search: searchQuery || undefined,
+      startDate: appliedRange.from
+          ? format(appliedRange.from, 'yyyy-MM-dd')
+          : undefined,
+      endDate: appliedRange.to
+          ? format(appliedRange.to, 'yyyy-MM-dd')
+          : appliedRange.from
               ? format(appliedRange.from, 'yyyy-MM-dd')
               : undefined,
-          end_date: appliedRange.to
-              ? format(appliedRange.to, 'yyyy-MM-dd')
-              : appliedRange.from
-                  ? format(appliedRange.from, 'yyyy-MM-dd')
-                  : undefined,
-        }
-      });
-      return res.data.data;
-    },
+    }),
    // keepPreviousData: true
   });
 

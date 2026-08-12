@@ -1,18 +1,17 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Search, UtensilsCrossed } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Product } from '@/src/types/menus';
+import { Category, Product } from '@/src/types/menus';
 import { useCart } from '@/src/hooks/use-cart';
 import { formatCurrency } from '@/src/lib/formatCurrency';
 
 
 interface ProductGridProps {
   products: Product[];
-  categories: any[];
+  categories: Category[];
 }
 
 export default function ProductGrid({ products, categories }: ProductGridProps) {
@@ -71,17 +70,11 @@ export default function ProductGrid({ products, categories }: ProductGridProps) 
       <div className="flex-1 overflow-y-auto pr-2">
         {filteredProducts.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            <AnimatePresence mode='popLayout'>
               {filteredProducts.map((product) => (
-                <motion.div
+                <div
                   key={product.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  whileTap={{ scale: 0.95 }}
                   onClick={() => addToCart(product)}
-                  className="group relative flex flex-col bg-card border rounded-2xl overflow-hidden cursor-pointer hover:border-primary transition-colors shadow-sm h-48"
+                  className="group relative flex flex-col bg-card border rounded-2xl overflow-hidden cursor-pointer hover:border-primary transition-colors shadow-sm h-48 animate-in fade-in zoom-in-95 duration-200 active:scale-95"
                 >
                   {/* Badge de prix */}
                   <div className="absolute top-2 right-2 z-10 bg-black/70 text-white px-2 py-1 rounded-lg text-xs font-bold backdrop-blur-md">
@@ -103,9 +96,8 @@ export default function ProductGrid({ products, categories }: ProductGridProps) 
                       {product.name}
                     </h3>
                   </div>
-                </motion.div>
+                </div>
               ))}
-            </AnimatePresence>
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">

@@ -7,12 +7,15 @@ import {Input} from "@/components/ui/input";
 import {Badge} from "@/components/ui/badge";
 import {format} from "date-fns";
 import {fr} from "date-fns/locale";
-import api from "../../../lib/axios";
+import * as orderingApi from "../../../lib/api/ordering";
+import * as catalogApi from "../../../lib/api/catalog";
 import {ReservationSheet} from "./ReservationSheet";
 import {formatCurrency} from "../../../lib/formatCurrency";
 import {ReservationDetailModal} from "./ReservationDetailModal";
 import {toast} from "sonner";
 import Link from "next/link";
+import {Reservation} from "@/src/types/menus";
+import {getErrorMessage} from "@/src/lib/errors";
 
 
 export default function ReservationsPage() {
@@ -21,12 +24,12 @@ export default function ReservationsPage() {
     const [filter, setFilter] = useState("upcoming");
     const [isSaveLoading, setIsSaveLoading] = useState(false);
     const [isSheetOpen, setIsSheetOpen] = useState(false);
-    const [selectedRes, setSelectedRes] = useState<any>(null);
+    const [selectedRes, setSelectedRes] = useState<Reservation | null>(null);
 
     const [isDetailOpen, setIsDetailOpen] = useState(false);
-    const [viewingRes, setViewingRes] = useState<any>(null);
+    const [viewingRes, setViewingRes] = useState<Reservation | null>(null);
 
-    const openDetail = (res: any) => {
+    const openDetail = (res: Reservation) => {
         setViewingRes(res);
         setIsDetailOpen(true);
     };
@@ -37,13 +40,13 @@ export default function ReservationsPage() {
         setIsSheetOpen(true);
     };
 
-    const openEdit = (res: any) => {
+    const openEdit = (res: Reservation) => {
         setSelectedRes(res);
         setIsSheetOpen(true);
     };
-    const handlePayment = async (reservation: any) => {
-        // 1. Protection : On ne traite pas si déjà payé
-        if (reservation.order?.status === 'paid') return;
+    const handlePayment = async (reservation: Reservation) => {
+        // 1. Protection : On ne traite pas si déjà payé (ou sans commande associée)
+        if (!reservation.order || reservation.order.status === 'paid') return;
 
         // 2. Confirmation simple
 /*        const confirm = window.confirm(
@@ -55,11 +58,9 @@ export default function ReservationsPage() {
         try {
             setIsSaveLoading(true); // Si tu as un état de loading global ou local
 
-            // 3. Appel API vers le endpoint de checkout
-            await api.post(`/api/admin/reservations/${reservation.order.id}/pay`, {
-                payment_method: 'cash', // Par défaut ou via un petit sélecteur
-                amount_received: reservation.order?.amounts.total
-            });
+            // Spring's ReservationController#pay ne prend pas de corps de requête —
+            // le paiement est traité côté serveur (voir cashier).
+            await orderingApi.payReservation(reservation.order.id);
 
             toast.success("Commande transmise à la caisse !");
 
@@ -69,29 +70,34 @@ export default function ReservationsPage() {
             // 5. Fermer le modal de détail si nécessaire
             setIsDetailOpen(false);
 
-        } catch (error: any) {
-            toast.error("Impossible de transmettre à la caisse");
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Impossible de transmettre à la caisse"));
         } finally {
             setIsSaveLoading(false);
         }
     };
     // Data : Réservations
+    // Note : le filtre "search" côté Spring n'existe plus pour cet endpoint (voir le
+    // README du backend — "reservations drop the search filter") ; le paramètre est
+    // gardé côté client par cohérence avec l'UI mais n'a plus d'effet serveur.
     const { data: reservations, isLoading } = useQuery({
         queryKey: ["reservations", filter, searchTerm],
-        queryFn: async () => {
-            const res = await api.get("/api/admin/reservations", {
-                params: { filter, search: searchTerm }
-            });
-            return res.data.data;
-        }
+        queryFn: () => orderingApi.listReservations(filter),
     });
 
-    // Data : Catégories pour le Sheet
+    // Data : Catégories + Produits pour le Sheet (CategoryDto n'a pas de produits imbriqués
+    // côté Spring — on les regroupe nous-mêmes côté client).
     const { data: allCategories } = useQuery({
-        queryKey: ["categories"],
+        queryKey: ["categories-with-products"],
         queryFn: async () => {
-            const res = await api.get("/api/admin/categories");
-            return res.data.data;
+            const [categories, products] = await Promise.all([
+                catalogApi.listCategoriesAdmin(),
+                catalogApi.listProductsAdmin(),
+            ]);
+            return categories.map((cat) => ({
+                ...cat,
+                products: products.filter((p) => p.category.id === cat.id),
+            }));
         },
     });
 
@@ -180,7 +186,7 @@ export default function ReservationsPage() {
                         </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                        {reservations.map((res: any) => (
+                        {reservations.map((res: Reservation) => (
                             <tr
                                 key={res.id}
                                 className="cursor-pointer hover:bg-slate-50/50 transition-colors group"
@@ -209,7 +215,7 @@ export default function ReservationsPage() {
                                 </td>
                                 <td className="p-6">
                                     <Badge variant="outline" className="border-2 font-black rounded-xl px-3 py-1">
-                                        {formatCurrency(res.order?.amounts.total)}
+                                        {formatCurrency(res.order?.amounts.total ?? 0)}
                                     </Badge>
                                 </td>
                                 <td className="p-6">

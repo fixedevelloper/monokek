@@ -19,7 +19,9 @@ import { formatCurrency } from '@/src/lib/formatCurrency';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useCartStore } from '@/src/store/use-cart-store';
-import api from '@/src/lib/axios';
+import { finalizePayment } from '@/src/lib/api/ordering';
+import { getErrorMessage } from '@/src/lib/errors';
+import { Order, OrderItem } from '@/src/types/menus';
 
 const PAYMENT_METHODS = [
   { id: 1, name: 'Espèces', icon: Banknote, key: 'cash' },
@@ -42,7 +44,7 @@ export default function PaymentModal() {
   // Détermination de la source de données (Vente existante ou Panier)
   const displayData = useMemo(() => ({
     total: selectedSaleForPayment?.amounts.total ?? cartTotal ?? 0,
-    items: selectedSaleForPayment?.items ?? cartItems ?? [],
+    items: (selectedSaleForPayment as (Order & { items?: OrderItem[] }) | null)?.items ?? cartItems ?? [],
     reference: selectedSaleForPayment?.reference ?? `TK-${Date.now()}`
   }), [selectedSaleForPayment, cartTotal, cartItems]);
 
@@ -98,22 +100,16 @@ const handleFinalize = async () => {
   setIsProcessing(true);
 
   try {
-    const payload = {
-      payment_method: method.key,
-      amount_received: received,
-      change_due: Math.max(0, received - total),
-    };
-
-    const { data } = await api.post(`/api/pos/orders/${uuid}/finalize`, payload);
+    const message = await finalizePayment(uuid, method.key, received);
 
     // 2. Gestion de l'impression (try/catch interne optionnel)
     // On attend l'impression, mais on peut aussi ne pas bloquer le succès si l'imprimante échoue
 /*
     try {
       await processPrintJob({
-        total: total, 
-        items: displayData.items, 
-        reference: data.reference || displayData.reference || uuid,
+        total: total,
+        items: displayData.items,
+        reference: displayData.reference || uuid,
         payment_method: method.name // Info utile pour le ticket
       });
     } catch (printErr) {
@@ -122,7 +118,7 @@ const handleFinalize = async () => {
     }
 */
 
-    toast.success(data.message || "Paiement validé !");
+    toast.success(message || "Paiement validé !");
     
     // 3. Reset de l'interface
     if (!selectedSaleForPayment) {
@@ -130,10 +126,9 @@ const handleFinalize = async () => {
     }
     closePayment();
 
-  } catch (error: any) {
+  } catch (error) {
     console.error("Erreur API Finalize:", error);
-    const message = error.response?.data?.message || "Une erreur est survenue lors du paiement";
-    toast.error(message);
+    toast.error(getErrorMessage(error, "Une erreur est survenue lors du paiement"));
   } finally {
     setIsProcessing(false);
   }

@@ -1,16 +1,17 @@
 import { create } from 'zustand';
+import { Order } from '../types/menus';
 
 interface UIState {
   // Sidebar & Navigation
   isSidebarOpen: boolean;
   activeModule: 'sales' | 'tables' | 'kitchen' | 'inventory' | 'reports';
-  
+
   // Modals & Overlays
   isPaymentModalOpen: boolean;
-  selectedSaleForPayment: any | null;
+  selectedSaleForPayment: Order | null;
   isModifierModalOpen: boolean;
   isLocked: boolean; // État de verrouillage de l'écran (PIN Code)
-  
+
   // UI Settings (Tauri specific)
   isDarkMode: boolean;
   isCompactMode: boolean; // Pour les petits écrans/tablettes
@@ -18,7 +19,7 @@ interface UIState {
   // Actions
   toggleSidebar: () => void;
   setModule: (module: UIState['activeModule']) => void;
-  openPayment: (sale?: any) => void; // <-- MODIFIÉ : Accepte maintenant une vente
+  openPayment: (sale?: Order) => void; // <-- MODIFIÉ : Accepte maintenant une vente
   closePayment: () => void;
   setLocked: (status: boolean) => void;
   toggleTheme: () => void;

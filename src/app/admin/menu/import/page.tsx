@@ -4,14 +4,21 @@ import React, {useState} from "react";
 import {ArrowLeft, CheckCircle2, FileUp, Trash2} from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {toast} from "sonner";
-import api from "@/src/lib/axios";
+import * as catalogApi from "@/src/lib/api/catalog";
 import Link from "next/link";
 import Papa from "papaparse"; // Import pour le CSV
 import {useRouter} from "next/navigation";
 import {useQueryClient} from "@tanstack/react-query";
+import {getErrorMessage} from "@/src/lib/errors";
+
+interface ImportRow {
+    name?: string;
+    price?: string;
+    category?: string;
+}
 
 export default function ImportProductsPage() {
-    const [fileData, setFileData] = useState<any[]>([]);
+    const [fileData, setFileData] = useState<ImportRow[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const router = useRouter();
     const queryClient = useQueryClient();
@@ -24,7 +31,7 @@ export default function ImportProductsPage() {
             return toast.error("Veuillez uploader un fichier au format CSV.");
         }
 
-        Papa.parse(file, {
+        Papa.parse<ImportRow>(file, {
             header: true, // Utilise la première ligne comme clés d'objet
             skipEmptyLines: true,
             complete: (results) => {
@@ -47,13 +54,21 @@ export default function ImportProductsPage() {
 
         setIsUploading(true);
         try {
-            // On envoie les données au backend Laravel
-            await api.post("/api/admin/products/bulk-import", { items: fileData });
+            await catalogApi.bulkImportProducts({
+                // TODO: pas de sélecteur de succursale dans cette UI — branche par défaut,
+                // comme le hardcodage Branch::first() de l'ancienne version Laravel.
+                branchId: 1,
+                items: fileData.map((row) => ({
+                    name: String(row.name ?? ''),
+                    price: parseFloat(row.price ?? '') || 0,
+                    category: String(row.category ?? ''),
+                })),
+            });
             toast.success("Importation réussie !");
             queryClient.invalidateQueries({ queryKey: ["products"] });
             router.push("/admin/menu");
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || "Erreur lors de l'importation finale.");
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Erreur lors de l'importation finale."));
         } finally {
             setIsUploading(false);
         }

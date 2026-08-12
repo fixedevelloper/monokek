@@ -5,6 +5,7 @@ import {load} from "@tauri-apps/plugin-store";
 import {toast} from "sonner";
 import {Save} from "lucide-react";
 import {useRouter} from 'next/navigation';
+import {invalidateBackendIpCache} from "@/src/lib/axios";
 
 export default function SettingsPage() {
     const [ip, setIp] = useState("");
@@ -27,6 +28,7 @@ export default function SettingsPage() {
                 });
             await store.set("backend-ip", ip);
             await store.save(); // Force l'écriture sur le disque
+            invalidateBackendIpCache();
 
             toast.success("Configuration mise à jour !");
             

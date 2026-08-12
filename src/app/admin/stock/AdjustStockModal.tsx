@@ -5,25 +5,26 @@ import {cn} from "@/lib/utils";
 import {useStockStore} from "@/src/store/use-stock-store";
 import {useState} from "react";
 import {toast} from "sonner";
+import {Ingredient} from "@/src/types/stock";
 
-export function AdjustStockModal({ 
-  open, 
-  onOpenChange, 
-  item, 
-  type 
-}: { 
-  open: boolean, 
-  onOpenChange: (o: boolean) => void, 
-  item: any, 
-  type: 'in' | 'out' 
+export function AdjustStockModal({
+  open,
+  onOpenChange,
+  item,
+  type
+}: {
+  open: boolean,
+  onOpenChange: (o: boolean) => void,
+  item: Ingredient | null,
+  type: 'in' | 'out'
 }) {
   const [qty, setQty] = useState("");
   const [reason, setReason] = useState("");
   const { adjustStock } = useStockStore(); // Ajoute cette fonction à ton store
 
   const handleConfirm = async () => {
-    if (!qty || parseFloat(qty) <= 0) return;
-    
+    if (!item || !qty || parseFloat(qty) <= 0) return;
+
     try {
       await adjustStock(item.id, {
         qty: parseFloat(qty),
@@ -50,7 +51,7 @@ export function AdjustStockModal({
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase ml-2">Quantité ({item?.unit?.name || item?.unit})</label>
+            <label className="text-[10px] font-black uppercase ml-2">Quantité ({(typeof item?.unit === 'object' ? item.unit.name : item?.unit)})</label>
             <Input 
               type="number" 
               value={qty} 

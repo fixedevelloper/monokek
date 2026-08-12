@@ -12,8 +12,26 @@ import {
 } from "tauri-plugin-thermal-printer";
 import api from "../lib/axios";
 
+interface PrintJobPrinter {
+  connection: string;
+  name: string;
+  ip?: string;
+  port?: number;
+  paper_width?: string;
+}
+
+interface PrintJob {
+  id: string | number;
+  job_type: string;
+  printer?: PrintJobPrinter;
+  content?: {
+    order?: { reference: string; [key: string]: unknown };
+    store?: Record<string, unknown>;
+  };
+}
+
 export const usePrint = () => {
-  const [settings, setSettings] = useState<any>(null);
+  const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
   const [loadingSettings, setLoadingSettings] = useState<boolean>(true);
 
   const fetchSettings = useCallback(async () => {
@@ -35,7 +53,7 @@ export const usePrint = () => {
   /**
    * Enclenche le processus d'impression universel
    */
-  const processPrintJob = async (job: any) => {
+  const processPrintJob = async (job: PrintJob) => {
     console.log(`[usePrint] Début traitement Job #${job.id} (Type: ${job.job_type})`);
 
     const printer = job.printer || { connection: "usb", name: "XP-80", paper_width: "80" };
@@ -88,9 +106,9 @@ export const usePrint = () => {
       await print_thermal_printer(printJobPayload);
       await api.post(`/api/print-queue/${job.id}/mark-success`);
 
-    } catch (error: any) {
+    } catch (error) {
      // console.error(`[usePrint] Erreur critique sur le job #${job.id}:`, error);
-    //  toast.error(`Erreur d'impression : ${error?.response?.data?.error || "Vérifiez l'imprimante"}`);
+    //  toast.error(`Erreur d'impression : ${getErrorMessage(error, "Vérifiez l'imprimante")}`);
     }
   };
 

@@ -13,15 +13,14 @@ import {
 } from "@/components/ui/select";
 import { Printer, Globe, Usb, Save, PlusCircle } from "lucide-react";
 import {PrinterFormValues} from "../../../types/menus";
-
-// 1. Définir l'interface précise pour les champs du formulaire
-
+import {Branch} from "@/src/types/company";
 
 interface PrinterDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSubmit: (data: PrinterFormValues) => void; // Typé ici aussi
     initialData?: Partial<PrinterFormValues>| null;
+    branches: Branch[];
     isPending?: boolean;
 }
 
@@ -30,6 +29,7 @@ export const PrinterDialog = ({
                                   onOpenChange,
                                   onSubmit,
                                   initialData,
+                                  branches,
                                   isPending
                               }: PrinterDialogProps) => {
 
@@ -41,7 +41,7 @@ export const PrinterDialog = ({
             connection: "network",
             ip: "",
             port: 9100,
-            branch_id: 1,
+            branch_id: branches[0]?.id ?? 0,
             location: "receipt", // Valeurs par défaut indispensables
             paper_width: "80",
             char_per_line: 42,
@@ -57,6 +57,7 @@ export const PrinterDialog = ({
                 reset({
                     ...initialData,
                     // S'assurer que les champs manquants dans initialData ont des replis
+                    branch_id: initialData.branch_id ?? branches[0]?.id ?? 0,
                     location: initialData.location || "receipt",
                     paper_width: initialData.paper_width || "80",
                     use_beep: initialData.use_beep ?? true,
@@ -69,7 +70,7 @@ export const PrinterDialog = ({
                     connection: "network",
                     ip: "",
                     port: 9100,
-                    branch_id: 1,
+                    branch_id: branches[0]?.id ?? 0,
                     location: "receipt",
                     paper_width: "80",
                     char_per_line: 42,
@@ -77,7 +78,7 @@ export const PrinterDialog = ({
                 });
             }
         }
-    }, [open, initialData, reset]);
+    }, [open, initialData, branches, reset]);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -95,6 +96,20 @@ export const PrinterDialog = ({
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 py-4">
+                    <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase ml-1 text-slate-500">Succursale</Label>
+                        <Select onValueChange={(v) => setValue("branch_id", Number(v))} value={String(watch("branch_id"))}>
+                            <SelectTrigger className="rounded-2xl border-slate-100 bg-slate-50/50 h-12 font-bold">
+                                <SelectValue placeholder="Choisir une succursale" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl font-bold">
+                                {branches.map((branch) => (
+                                    <SelectItem key={branch.id} value={String(branch.id)}>{branch.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase ml-1 text-slate-500">Nom de l'équipement</Label>

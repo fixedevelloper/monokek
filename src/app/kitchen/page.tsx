@@ -1,72 +1,63 @@
 "use client";
 
-import {useEffect, useState} from "react";
+import {useCallback, useEffect, useState} from "react";
 import Link from "next/link";
 import {Beer, Coffee, Flame, LayoutGrid, Loader2, LogOut, Utensils} from "lucide-react";
 import {Card} from "@/components/ui/card";
 import {Badge} from "@/components/ui/badge";
 import api from "@/src/lib/axios";
+import * as identityApi from "@/src/lib/api/identity";
 import {cn} from "@/lib/utils";
 import {Button} from "@/components/ui/button";
 import {toast} from "sonner";
 import {useRouter} from "next/navigation";
-import {useEcho} from "@/src/hooks/useEcho";
+import {useNotifications} from "@/src/providers/NotificationsProvider";
 
 interface KitchenStation {
     id: number;
     name: string;
-    pending_tickets_count: number;
+    pendingTicketsCount: number;
 }
 
 export default function KitchenDashboard() {
     const [stations, setStations] = useState<KitchenStation[]>([]);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
-    const echo = useEcho();
-    useEffect(() => {
-        // 1. Définition de la fonction de récupération
-        const fetchStations = async () => {
-            try {
-                // Pas besoin de mettre setLoading(true) à chaque fois, 
-                // sinon l'écran va clignoter toutes les 45s.
-                const { data } = await api.get("/api/kitchen/stations");
-                setStations(data.data);
-            } catch (error) {
-                console.error("Erreur chargement stations");
-            } finally {
-                setLoading(false);
-            }
-        };
+    const {on} = useNotifications();
 
-        // 2. Exécution immédiate au montage
+    const fetchStations = useCallback(async () => {
+        try {
+            // GET /api/kitchen/stations returns a bare JSON array, not a {data: [...]} envelope.
+            const { data } = await api.get("/api/kitchen/stations");
+            setStations(data);
+        } catch (error) {
+            console.error("Erreur chargement stations");
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        // 1. Exécution immédiate au montage
         fetchStations();
 
-        // 3. Mise en place du polling (45 000 ms)
-const interval = setInterval(() => {
-    if (document.visibilityState === 'visible') {
-       // fetchStations();
-    }
-}, 45000);
+        // 2. Mise en place du polling (45 000 ms)
+        const interval = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+               // fetchStations();
+            }
+        }, 45000);
 
-        // 4. Nettoyage : très important pour éviter les fuites de mémoire
+        // 3. Nettoyage : très important pour éviter les fuites de mémoire
         return () => clearInterval(interval);
-    }, []);
+    }, [fetchStations]);
+
+    // SSE : pas d'équivalent "station.updated" côté backend — un nouveau ticket
+    // change forcément le compteur d'une station, donc on refetch sur ticket.created.
     useEffect(() => {
-        if (!echo) return;
-
-        const channel = echo.channel('kitchen.stations')
-            .listen('.station.updated', (station: any) => {
-                console.log('station')
-                console.log(station)
-                setStations(prev => prev.map(s =>
-                    s.id === station.id
-                        ? { ...s, pending_tickets_count: station.pending_tickets_count }
-                        : s
-                ));
-            });
-
-        return () => echo.leaveChannel('kitchen.stations');
-    }, [echo]);
+        const off = on('ticket.created', () => { fetchStations(); });
+        return off;
+    }, [on, fetchStations]);
     // Petit helper pour choisir une icône selon le nom de la station
     const getStationIcon = (name: string) => {
         const n = name.toLowerCase();
@@ -77,8 +68,7 @@ const interval = setInterval(() => {
     };
     const handleLogout = async () => {
         try {
-            // Appel à ton API Laravel Sanctum pour révoquer le token
-            await api.post('/api/logout');
+            await identityApi.logout();
 
             // Nettoyage local (LocalStorage, Cookies, etc.)
             localStorage.removeItem('token');
@@ -153,9 +143,9 @@ const interval = setInterval(() => {
                                     <div className="flex items-center gap-2">
                                         <Badge className={cn(
                                             "rounded-full px-4 font-black",
-                                            station.pending_tickets_count > 0 ? "bg-red-500" : "bg-slate-200 text-slate-500"
+                                            station.pendingTicketsCount > 0 ? "bg-red-500" : "bg-slate-200 text-slate-500"
                                         )}>
-                                            {station.pending_tickets_count} EN ATTENTE
+                                            {station.pendingTicketsCount} EN ATTENTE
                                         </Badge>
                                     </div>
                                 </div>

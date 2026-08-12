@@ -4,7 +4,7 @@ import {useEffect} from "react";
 import {useRouter} from "next/navigation";
 import {Loader2, Store} from "lucide-react";
 import {useAuth} from "../hooks/use-auth";
-import {ROLES} from "../constants/roles";
+import {roleHomeRoute} from "../constants/roles";
 
 export default function RootPage() {
   const router = useRouter();
@@ -18,27 +18,8 @@ export default function RootPage() {
         return;
       }
 
-      // Redirection intelligente basée sur les rôles définis dans tes migrations
-      switch (user?.role) {
-        case ROLES.ADMIN:
-            router.replace("/admin");
-          break;
-        case ROLES.MANAGER:
-          router.replace("/admin");
-          break;
-        case ROLES.KITCHEN:
-          router.replace("/kitchen/tickets");
-          break;
-        case ROLES.CASHIER:
-          router.replace("/pos/sales");
-          break;
-        case ROLES.WAITER:
-          router.replace("/pos/tables");
-          break;
-        default:
-          router.replace("/pos/tables");
-          break;
-      }
+      // Redirection basée sur le rôle — même règle que RouteGuard, via roleHomeRoute.
+      router.replace(roleHomeRoute(user?.role));
     }, 500);
 
     return () => clearTimeout(timeout);

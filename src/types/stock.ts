@@ -15,7 +15,7 @@ export interface Ingredient {
   stock: number;
   alert_qty: number;
   unit_id: number;
-  unit?: string; // Soit l'objet Unit, soit juste le nom selon la Resource API
+  unit?: string | Unit; // Soit l'objet Unit, soit juste le nom selon la Resource API
   created_at?: string;
   updated_at?: string;
   
@@ -44,15 +44,18 @@ export interface Recipe {
 }
 
 /**
- * Historique des mouvements de stock
+ * Historique des mouvements de stock.
+ * Champs à plat, alignés sur StockMovementDto côté backend (GET /api/admin/stock-movements) —
+ * ce n'est qu'un id + un nom d'ingrédient, pas l'Ingredient complet.
  */
 export interface StockMovement {
   id: number;
-  ingredient: Ingredient;
+  ingredientId: number;
+  ingredientName: string;
   type: 'in' | 'out' | 'adjust';
   qty: number;
   reason: string | null;
-  created_at: string;
+  createdAt: string;
 }
 
 /**

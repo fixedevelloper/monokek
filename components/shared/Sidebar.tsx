@@ -3,24 +3,33 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  ShoppingCart, 
-  Utensils, 
-  Package, 
-  BarChart3, 
-  Settings, 
+import {
+  LayoutDashboard,
+  ShoppingCart,
+  Utensils,
+  Package,
+  BarChart3,
+  Settings,
   LogOut,
   ChevronRight,
-  Store
+  Store,
+  type LucideIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useUIStore } from '@/src/store/use-ui-store';
 import { useAuth } from '@/src/hooks/use-auth';
 import RoleGuard from './RoleGuard';
+import { AppRole } from '@/src/constants/roles';
 
-const MENU_ITEMS = [
+interface MenuItem {
+  label: string;
+  icon: LucideIcon;
+  href: string;
+  roles: AppRole[];
+}
+
+const MENU_ITEMS: MenuItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/admin', roles: ['admin', 'manager'] },
   { label: 'Caisse POS', icon: ShoppingCart, href: '/pos', roles: ['admin', 'cashier', 'waiter'] },
   { label: 'Cuisine', icon: Utensils, href: '/kitchen', roles: ['admin', 'kitchen'] },
@@ -54,7 +63,7 @@ export default function Sidebar() {
       {/* 2. Navigation Principale */}
       <nav className="flex-1 px-3 space-y-2 mt-4">
         {MENU_ITEMS.map((item) => (
-          <RoleGuard key={item.href} allowedRoles={item.roles as any}>
+          <RoleGuard key={item.href} allowedRoles={item.roles}>
             <Link href={item.href}>
               <div className={cn(
                 "group flex items-center gap-3 px-3 py-3 rounded-xl transition-all cursor-pointer relative",

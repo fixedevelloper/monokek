@@ -7,7 +7,7 @@ import {Checkbox} from "@/components/ui/checkbox";
 import {Info, Loader2, ShieldCheck} from "lucide-react";
 import {toast} from "sonner";
 import {Permission, StaffMember} from "@/src/types/management";
-import api from "@/src/lib/axios";
+import * as identityApi from "@/src/lib/api/identity";
 
 
 interface PermissionsModalProps {
@@ -27,17 +27,15 @@ export function PermissionsModal({ member, open, onOpenChange }: PermissionsModa
             // 1. Charger toutes les permissions disponibles
             const fetchData = async () => {
                 try {
-                    const res = await api.get('/api/admin/staff/permissions/list');
-                    setAllPermissions(res.data.data);
+                    const permissions = await identityApi.listPermissions();
+                    setAllPermissions(permissions);
                 } catch (e) {
                     toast.error("Erreur de chargement des permissions");
                 }
             };
             fetchData();
             // 2. Initialiser les permissions actuelles du membre
-          setUserPermissions(
-  member.permissions?.map(p => p.name) ?? []
-);
+          setUserPermissions(member.permissions ?? []);
         }
     }, [open, member]);
 
@@ -63,10 +61,7 @@ export function PermissionsModal({ member, open, onOpenChange }: PermissionsModa
     const handleSave = async () => {
         setLoading(true);
         try {
-            // Route à créer dans ton StaffController
-            await api.put(`/api/admin/staff/${member.uuid}/permissions`, {
-                permissions: userPermissions
-            });
+            await identityApi.updateStaffPermissions(member.uuid, userPermissions);
             toast.success("Permissions mises à jour avec succès");
             onOpenChange(false);
         } catch (error) {

@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 
-import { motion, AnimatePresence } from 'framer-motion';
 import { useUIStore } from '@/src/store/use-ui-store';
 import { useCart } from '@/src/hooks/use-cart';
 import { formatCurrency } from '@/src/lib/formatCurrency';
@@ -34,15 +33,11 @@ export default function CartSidebar() {
       {/* 2. Liste des Articles (Scrollable) */}
       <ScrollArea className="flex-1 px-4">
         <div className="py-4 flex flex-col gap-4">
-          <AnimatePresence initial={false}>
-            {items.length > 0 ? (
+          {items.length > 0 ? (
               items.map((item) => (
-                <motion.div
+                <div
                   key={item.id}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="flex flex-col gap-2 p-3 rounded-xl bg-accent/30 border border-transparent hover:border-border transition-all"
+                  className="flex flex-col gap-2 p-3 rounded-xl bg-accent/30 border border-transparent hover:border-border transition-all animate-in fade-in slide-in-from-right-4 duration-200"
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -87,14 +82,13 @@ export default function CartSidebar() {
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
-                </motion.div>
+                </div>
               ))
             ) : (
               <div className="flex flex-col items-center justify-center py-20 text-muted-foreground/50 italic text-sm">
                 Aucun article sélectionné
               </div>
             )}
-          </AnimatePresence>
         </div>
       </ScrollArea>
 
@@ -121,9 +115,9 @@ export default function CartSidebar() {
             <Send className="h-5 w-5" />
             <span className="text-[10px] uppercase font-bold text-primary">Cuisine</span>
           </Button>
-          <Button 
-            className="h-14 flex flex-col gap-1 shadow-lg shadow-primary/20" 
-            onClick={openPayment}
+          <Button
+            className="h-14 flex flex-col gap-1 shadow-lg shadow-primary/20"
+            onClick={() => openPayment()}
             disabled={items.length === 0}
           >
             <CreditCard className="h-5 w-5" />

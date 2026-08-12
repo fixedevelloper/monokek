@@ -1,19 +1,21 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
     ChefHat, Loader2, LockIcon, ChevronLeft,
     Timer, CheckCircle2, PlayCircle, Layers, Beer
 } from "lucide-react";
 import { toast } from "sonner";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import api from "@/src/lib/axios";
 import { cn } from "@/lib/utils";
-import { useEcho } from "@/src/hooks/useEcho";
+import { useNotifications } from "@/src/providers/NotificationsProvider";
+import * as kitchenStationApi from "@/src/lib/api/kitchenStation";
 
 // On définit l'interface pour correspondre à notre nouveau Resource Laravel
 interface KitchenTicket {
@@ -22,7 +24,7 @@ interface KitchenTicket {
     table: string;
     status: 'pending' | 'preparing' | 'ready'|  'served';
     createdAt: string;
-    round_number: number;
+    roundNumber: number;
     items: Array<{
         id: number;
         name: string;
@@ -33,89 +35,92 @@ interface KitchenTicket {
 
 export default function ComptoirPage() {
     const router = useRouter();
-    const stationId = 3;
-    const echo = useEcho();
+    const {on} = useNotifications();
+    const queryClient = useQueryClient();
 
-    const [tickets, setTickets] = useState<KitchenTicket[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    // 1. Résout la station de type BAR au lieu d'un id codé en dur (qui ne correspondait à
+    // rien de réel une fois les stations enfin gérées via /admin/settings). S'il existe
+    // plusieurs stations BAR pour la succursale, ce comptoir affiche la première trouvée.
+    const { data: barStation, isLoading: isLoadingStation } = useQuery({
+        queryKey: ['comptoir-bar-station'],
+        queryFn: async () => {
+            const stations = await kitchenStationApi.listStations();
+            return stations.find((s) => s.type === 'BAR') ?? null;
+        },
+    });
+    const stationId = barStation?.id;
 
-    // 1. Fetch des tickets (Stable avec useCallback)
-    const fetchTickets = useCallback(async () => {
-        if (!stationId) return;
-        try {
+    // 2. Fetch des tickets
+    const ticketsQueryKey = ['comptoir-tickets', stationId] as const;
+    const {data: tickets = [], isLoading} = useQuery({
+        queryKey: ticketsQueryKey,
+        queryFn: async () => {
+            // GET /api/kitchen/tickets expects `stationId` (camelCase — the Java @RequestParam
+            // name), and returns a bare JSON array, not a {data: [...]} envelope.
             const { data } = await api.get(`/api/kitchen/tickets`, {
-                params: { station_id: stationId }
+                params: { stationId }
             });
-            setTickets(data.data);
-        } catch (error) {
-            toast.error("Erreur de synchronisation");
-        } finally {
-            setIsLoading(false);
-        }
-    }, [stationId]);
+            return data as KitchenTicket[];
+        },
+        enabled: !!stationId,
+    });
 
+    // 3. Écoute temps réel via SSE — payload léger (pas les items), donc on
+    // refetch la liste complète plutôt que de tenter de reconstruire un ticket.
     useEffect(() => {
-        fetchTickets();
-    }, [fetchTickets]);
+        if (!stationId) return;
 
-    // 2. Écoute temps réel CORRIGÉE sans déconnexion agressive
-    useEffect(() => {
-        if (!echo || !stationId) return;
+        const off = on('ticket.created', (payload) => {
+            if (Number(payload?.stationId) !== stationId) return;
 
-        const channelName = `kitchen.station.${stationId}`;
-        console.log(`[Comptoir] 🎧 Abonnement au canal : ${channelName}`);
-
-        const channel = echo.channel(channelName);
-
-        // On attache l'écouteur d'événement
-        channel.listen('.ticket.created', (newTicket: KitchenTicket) => {
-            console.log("[Comptoir] 🔔 Nouveau ticket reçu via WS :", newTicket);
-            setTickets(prev => {
-                // Éviter les doublons si le polling et le WS arrivent en même temps
-                if (prev.some(t => t.id === newTicket.id)) return prev;
-                return [newTicket, ...prev];
-            });
-
-            // Son de notification
+            queryClient.invalidateQueries({ queryKey: ticketsQueryKey });
             const audio = new Audio('/sounds/new-order.mp3');
             audio.play().catch(() => {});
-            toast.info(`Nouveau ticket : Table ${newTicket.table}`);
+            toast.info(`Nouveau ticket : Table ${payload?.tableName || 'N/A'}`);
         });
 
-        // NETTOYAGE SUBTIL : On arrête juste d'écouter l'événement spécifique
-        // au lieu de forcer un "leaveChannel" global qui secoue la connexion Reverb
-        return () => {
-            console.log(`[Comptoir] 🎚️ Désactivation de l'écouteur sur : ${channelName}`);
-            channel.stopListening('.ticket.created');
-        };
-    }, [echo, stationId]);
+        return off;
+    }, [on, stationId]);
 
-    // 3. Mise à jour du statut
-    const handleStatusChange = async (ticketId: number, nextStatus: string) => {
+    // 4. Mise à jour du statut
+    const handleStatusChange = async (ticketId: number, nextStatus: KitchenTicket['status']) => {
         try {
             await api.patch(`/api/kitchen/tickets-direct/${ticketId}/status`, {
                 status: nextStatus
             });
 
+            queryClient.setQueryData<KitchenTicket[]>(ticketsQueryKey, (prev = []) => {
+                if (nextStatus === 'served') {
+                    return prev.filter(t => t.id !== ticketId);
+                }
+                return prev.map(t => t.id === ticketId ? { ...t, status: nextStatus } : t);
+            });
+
             if (nextStatus === 'served') {
-                setTickets(prev => prev.filter(t => t.id !== ticketId));
                 toast.success("Commande prête à servir !");
-            } else {
-                setTickets(prev => prev.map(t =>
-                    t.id === ticketId ? { ...t, status: nextStatus as any } : t
-                ));
             }
         } catch (error) {
             toast.error("Action impossible");
         }
     };
+    if (isLoadingStation) {
+        return (
+            <div className="h-screen flex items-center justify-center bg-slate-950">
+                <Loader2 className="animate-spin text-white/40 h-10 w-10" />
+            </div>
+        );
+    }
+
     if (!stationId) {
         return (
             <div className="h-screen flex flex-col items-center justify-center gap-4 bg-slate-950 text-white">
                 <ChefHat className="text-primary opacity-20" size={80} />
-                <h2 className="font-black uppercase italic tracking-widest text-sm">Station non reconnue</h2>
-                <Button variant="outline" onClick={() => router.push('/sales')} className="rounded-full">
-                    Retour au Dashboard
+                <h2 className="font-black uppercase italic tracking-widest text-sm">Aucune station de type Bar configurée</h2>
+                <p className="text-white/40 text-xs max-w-sm text-center">
+                    Créez ou assignez une station de type "Bar" dans Réglages pour activer cet écran.
+                </p>
+                <Button variant="outline" onClick={() => router.push('/admin/settings')} className="rounded-full">
+                    Aller aux réglages
                 </Button>
             </div>
         );
@@ -171,7 +176,7 @@ export default function ComptoirPage() {
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <Layers size={14} className="text-primary" />
-                                        <span className="font-black text-xs text-primary uppercase italic">ROUND {ticket.round_number}</span>
+                                        <span className="font-black text-xs text-primary uppercase italic">ROUND {ticket.roundNumber}</span>
                                     </div>
                                     <h3 className="font-black text-3xl italic tracking-tighter leading-none">{ticket.table}</h3>
                                     <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mt-2">REF: {ticket.reference}</p>

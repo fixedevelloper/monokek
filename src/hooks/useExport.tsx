@@ -1,6 +1,4 @@
 import { useState } from "react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
 
 interface ExportOptions {
@@ -13,10 +11,17 @@ interface ExportOptions {
 export const useExport = () => {
     const [isExporting, setIsExporting] = useState(false);
 
-    const exportToPDF = async (options: ExportOptions, data: any[][]) => {
+    const exportToPDF = async (options: ExportOptions, data: (string | number)[][]) => {
         setIsExporting(true);
 
         try {
+            // Chargés à la demande : jsPDF/autoTable ne pèsent que sur le clic
+            // "Exporter", pas sur le chargement initial des pages qui utilisent ce hook.
+            const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+                import("jspdf"),
+                import("jspdf-autotable"),
+            ]);
+
             const doc = new jsPDF();
 
             // Design de l'en-tête

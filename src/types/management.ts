@@ -15,17 +15,19 @@ export interface StaffMember {
     name: string;
     email: string;
     phone: string | null;
-    branch_id: number;
     is_active: boolean;
-    
+
     // Le rôle principal retourné par UserResource via Spatie
     role: StaffRole;
-    
-    // Liste des permissions pour le contrôle d'accès granulaire (facultatif)
-    permissions?: Permission[];
-    
+
+    // Liste des noms de permission direct (hors rôle) pour le contrôle d'accès granulaire
+    permissions?: string[];
+
     created_at: string; // Formaté par Laravel (ex: "25/04/2026 08:30")
     updated_at: string;
+
+    // null = aucune branche assignée (owner/super-admin) — voit toutes les branches
+    branch_id: number | null;
 }
 
 /**

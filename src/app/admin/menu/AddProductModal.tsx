@@ -1,16 +1,17 @@
 "use client";
 
-import {useRef, useState} from "react";
+import {useState} from "react";
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger} from "@/components/ui/dialog";
 import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
 import {Button} from "@/components/ui/button";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
-import {DollarSign, ImageIcon, Package, Plus, Utensils, X} from "lucide-react";
+import {DollarSign, ImageIcon, Package, Plus, Utensils} from "lucide-react";
 import {toast} from "sonner";
 import {Category} from "@/src/types/menus";
-import api from "@/src/lib/axios";
+import * as catalogApi from "@/src/lib/api/catalog";
 import {useQueryClient} from "@tanstack/react-query";
+import {ImagePickerModal} from "@/components/shared/ImagePickerModal";
 
 interface AddProductModalProps {
     onProductAdded: () => void;
@@ -22,50 +23,33 @@ export function AddProductModal({ onProductAdded, categories }: AddProductModalP
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [categoryId, setCategoryId] = useState<string>("");
-    const [imagePreview, setImagePreview] = useState<string | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [imageUrl, setImageUrl] = useState("");
     const [productType, setProductType] = useState<'consumable' | 'storable'>('consumable');
     const queryClient = useQueryClient();
-    // Gestion de la prévisualisation de l'image
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => setImagePreview(reader.result as string);
-            reader.readAsDataURL(file);
-        }
-    };
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setLoading(true);
 
         const form = e.currentTarget;
-        const formData = new FormData();
-
-        // On ajoute manuellement les champs pour être sûr du format
-        formData.append("name", (form.elements.namedItem("name") as HTMLInputElement).value);
-        formData.append("price", (form.elements.namedItem("price") as HTMLInputElement).value);
-        formData.append("category_id", categoryId);
-        formData.append("sku", (form.elements.namedItem("sku") as HTMLInputElement).value);
-        formData.append("stock_count", (form.elements.namedItem("stock") as HTMLInputElement).value);
-        formData.append("alert_stock", (form.elements.namedItem("alert_stock") as HTMLInputElement).value);
-        formData.append("incentive_amount", (form.elements.namedItem("incentive_amount") as HTMLInputElement).value);
-        formData.append("type", productType);
-        // Ajout du fichier image
-        if (fileInputRef.current?.files?.[0]) {
-            formData.append("image", fileInputRef.current.files[0]);
-        }
+        const getVal = (name: string) => (form.elements.namedItem(name) as HTMLInputElement)?.value ?? "";
 
         try {
-            // Important : Pour l'upload d'image, on envoie le formData brut
-            await api.post("/api/admin/products", formData, {
-                headers: { "Content-Type": "multipart/form-data" }
+            await catalogApi.createProduct({
+                name: getVal("name"),
+                price: parseFloat(getVal("price")) || 0,
+                categoryId: Number(categoryId),
+                sku: getVal("sku") || undefined,
+                stockCount: productType === "storable" ? parseInt(getVal("stock"), 10) || 0 : undefined,
+                alertStock: productType === "storable" ? parseInt(getVal("alert_stock"), 10) || 0 : undefined,
+                incentiveAmount: parseFloat(getVal("incentive_amount")) || 0,
+                type: productType,
+                image: imageUrl || undefined,
             });
             queryClient.invalidateQueries({ queryKey: ["products"] });
             toast.success("Produit ajouté avec succès !");
             setOpen(false);
-            setImagePreview(null);
+            setImageUrl("");
             onProductAdded();
         } catch (error) {
             toast.error("Erreur lors de l'ajout");
@@ -90,32 +74,18 @@ export function AddProductModal({ onProductAdded, categories }: AddProductModalP
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-4 py-2">
-                    {/* SECTION IMAGE */}
-                    <div className="flex flex-col items-center justify-center border-2 border-dashed border-muted-foreground/20 rounded-[2rem] p-4 bg-muted/10 relative overflow-hidden group">
-                        {imagePreview ? (
-                            <div className="relative w-full h-32">
-                                <img src={imagePreview} alt="Preview" className="w-full h-full object-contain rounded-xl" />
-                                <button
-                                    type="button"
-                                    onClick={() => { setImagePreview(null); if(fileInputRef.current) fileInputRef.current.value = ""; }}
-                                    className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
-                                >
-                                    <X size={14} />
-                                </button>
-                            </div>
+                    {/* SECTION IMAGE (bibliothèque MinIO + upload) */}
+                    <div className="flex flex-col items-center justify-center border-2 border-dashed border-muted-foreground/20 rounded-[2rem] p-4 bg-muted/10 gap-3">
+                        {imageUrl ? (
+                            <img src={imageUrl} alt="Preview" className="w-full h-32 object-contain rounded-xl"
+                                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                         ) : (
-                            <div className="flex flex-col items-center py-4 cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                            <div className="flex flex-col items-center py-2">
                                 <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
                                 <span className="text-[10px] font-black uppercase text-muted-foreground">Photo du produit</span>
                             </div>
                         )}
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleImageChange}
-                            accept="image/*"
-                            className="hidden"
-                        />
+                        <ImagePickerModal folder="products" onSelect={setImageUrl} />
                     </div>
 
                     {/* INFOS DE BASE */}
@@ -132,7 +102,7 @@ export function AddProductModal({ onProductAdded, categories }: AddProductModalP
                                     <SelectValue placeholder="Catégorie" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {categories.map((cat: any) => (
+                                    {categories.map((cat) => (
                                         <SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>
                                     ))}
                                 </SelectContent>

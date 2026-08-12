@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { Clock, CheckCircle2, Utensils, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
@@ -47,11 +46,8 @@ export default function TicketCard({
   const isUrgent = minutesElapsed >= 15 && status !== 'ready';
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="w-full max-w-[350px]"
+    <div
+      className="w-full max-w-[350px] animate-in fade-in slide-in-from-bottom-4 duration-300"
     >
       <Card className={cn(
         "border-t-8 shadow-lg transition-all",
@@ -114,6 +110,6 @@ export default function TicketCard({
           )}
         </CardFooter>
       </Card>
-    </motion.div>
+    </div>
   );
 }

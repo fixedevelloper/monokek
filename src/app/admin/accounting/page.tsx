@@ -33,7 +33,7 @@ export default function AccountingPage() {
 
         try {
             // On demande un blob (Binary Large Object) pour intercepter le fichier brut envoyé par Laravel
-            const response = await api.get(`/api/accounting/${endpoint}`, {
+            const response = await api.get(`/api/admin/accounting/${endpoint}`, {
                 params: { start_date: startDate, end_date: endDate, format: fileType },
                 responseType: 'blob'
             });

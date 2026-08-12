@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { Wifi, WifiOff, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
 
 export default function SyncStatus() {
   const [isOnline, setIsOnline] = useState(true); // État du navigateur
@@ -59,33 +58,25 @@ export default function SyncStatus() {
           {isOnline ? "Connecté" : "Hors-ligne"}
         </span>
         <div className="flex items-center gap-1 mt-0.5">
-          <AnimatePresence mode="wait">
-            {isSyncing ? (
-              <motion.div
+          {isSyncing ? (
+              <div
                 key="syncing"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex items-center gap-1"
+                className="flex items-center gap-1 animate-in fade-in duration-200"
               >
                 <RefreshCw className="h-2.5 w-2.5 animate-spin text-primary" />
                 <span className="text-[9px] text-muted-foreground italic">Synchro...</span>
-              </motion.div>
+              </div>
             ) : (
-              <motion.div
+              <div
                 key="synced"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex items-center gap-1"
+                className="flex items-center gap-1 animate-in fade-in duration-200"
               >
                 <CheckCircle2 className="h-2.5 w-2.5 text-emerald-500" />
                 <span className="text-[9px] text-muted-foreground">
                   {lastSync.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
         </div>
       </div>
     </div>

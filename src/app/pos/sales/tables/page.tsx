@@ -1,16 +1,15 @@
 "use client";
 
 import React, {useEffect, useMemo, useState} from 'react';
-import {motion} from 'framer-motion';
 import {ChevronRight, History, LayoutGrid, LogOut, TableIcon, Users} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {Badge} from '@/components/ui/badge';
 import {cn} from '@/lib/utils';
 import {usePathname, useRouter} from 'next/navigation';
 import {Floor} from '@/src/types/tables';
-import api from '@/src/lib/axios';
+import * as floorplanApi from '@/src/lib/api/floorplan';
 import {useAuthStore} from '@/src/store/use-auth-store';
-import {useEcho} from '@/src/hooks/useEcho';
+import {useNotifications} from '@/src/providers/NotificationsProvider';
 
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 
@@ -18,7 +17,7 @@ import {useQuery, useQueryClient} from '@tanstack/react-query';
 export default function TablesPage() {
     const router = useRouter();
     const queryClient = useQueryClient();
-    const echo = useEcho();
+    const {on} = useNotifications();
 
     const [activeZoneId, setActiveZoneId] = useState<number | null>(null);
     const logout = useAuthStore((state) => state.logout);
@@ -30,10 +29,7 @@ export default function TablesPage() {
     // 1. Hook de récupération
     const {data: zones = [], isLoading} = useQuery<Floor[]>({
         queryKey: ['floors'],
-        queryFn: async () => {
-            const res = await api.get('/api/pos/floors');
-            return res.data.data;
-        },
+        queryFn: () => floorplanApi.listFloors(),
     });
 
     // 2. Gestion de la zone active via useEffect
@@ -44,53 +40,23 @@ export default function TablesPage() {
         }
     }, [zones, activeZoneId]);
 
-    // 3. SOCKET : mise à jour dynamique du statut des tables
-    //
-    // On réutilise le channel public "orders" déjà diffusé par le backend
-    // (order.created, round.added, order.updated envoient tous l'order avec
-    // sa relation 'table' chargée). Plutôt que d'attendre un refetch manuel
-    // de ['floors'], on patch directement la table concernée dans le cache
-    // React Query dès qu'un de ces events arrive.
+    // 3. SSE : mise à jour dynamique du statut des tables.
+    // Le payload SSE est volontairement léger (juste des ids), donc on ne
+    // patch plus le cache à la main : un event = un signal pour refetch
+    // ['floors'] auprès du backend, qui reste la seule source de vérité.
     useEffect(() => {
-        if (!echo) return;
+        const refreshFloors = () => queryClient.invalidateQueries({queryKey: ['floors']});
 
-        const applyTableUpdateFromOrder = (order: any) => {
-            const table = order?.table;
-            if (!table?.id) return;
-
-            queryClient.setQueryData<Floor[]>(['floors'], (oldZones) => {
-                if (!oldZones) return oldZones;
-
-                return oldZones.map((zone) => ({
-                    ...zone,
-                    tables: zone.tables.map((t) =>
-                        t.id === table.id
-                            ? {
-                                ...t,
-                                // status vient de la table réelle en base (mise à jour par
-                                // le backend lors du round : 'occupied', etc.)
-                                status: table.status ?? t.status,
-                                // Le total consommé peut être remonté depuis order.amounts
-                                total: order?.amounts?.total ?? t.total,
-                            }
-                            : t
-                    ),
-                }));
-            });
-        };
-
-        const channel = echo.channel('orders');
-
-        channel.listen('.order.created', applyTableUpdateFromOrder);
-        channel.listen('.round.added', (payload: any) => applyTableUpdateFromOrder(payload?.order));
-        channel.listen('.order.updated', applyTableUpdateFromOrder);
+        const offCreated = on('order.created', refreshFloors);
+        const offUpdated = on('order.updated', refreshFloors);
+        const offTicket = on('ticket.created', refreshFloors);
 
         return () => {
-            channel.stopListening('.order.created');
-            channel.stopListening('.round.added');
-            channel.stopListening('.order.updated');
+            offCreated();
+            offUpdated();
+            offTicket();
         };
-    }, [echo, queryClient]);
+    }, [on, queryClient]);
 
     // 4. Logique dérivée (Simple et performante)
     const activeZone = useMemo(() =>
@@ -142,15 +108,12 @@ export default function TablesPage() {
             <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
                     {filteredTables.map((table) => (
-                        <motion.div
+                        <div
                             key={table.id}
-                            layoutId={`table-${table.id}`}
-                            whileHover={{y: -4, transition: {duration: 0.2}}}
-                            whileTap={{scale: 0.98}}
                             //onClick={() => table.status === 'free' && router.push(`/pos/order?table=${table.id}`)}
                             onClick={() => router.push(`/pos/sales/tables/order?table=${table.id}`)}
                             className={cn(
-                                "relative group flex flex-col p-5 rounded-[2.5rem] border-2 transition-all duration-300 cursor-pointer h-52",
+                                "relative group flex flex-col p-5 rounded-[2.5rem] border-2 transition-all duration-200 cursor-pointer h-52 hover:-translate-y-1 active:scale-[0.98]",
                                 // État Disponible
                                 table.status === 'free'
                                     ? "bg-white border-slate-100 shadow-[0_10px_40px_-15px_rgba(0,0,0,0,05)] hover:border-emerald-500/50 hover:shadow-emerald-500/10"
@@ -166,7 +129,7 @@ export default function TablesPage() {
                                 <Badge className={cn(
                                     "text-[9px] uppercase px-3 py-1 rounded-full font-black tracking-widest border-none",
                                     table.status === 'free' ? "bg-emerald-100 text-emerald-600" :
-                                        table.status === 'occupied' || table.status === 'reserved' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200" :
+                                        table.status === 'occupied' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200" :
                                             table.status === 'billing' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200" :
                                                 "bg-amber-500 text-white"
                                 )}>
@@ -225,7 +188,7 @@ export default function TablesPage() {
                             {/* Effet de brillance au survol (Glass effect) */}
                             <div
                                 className="absolute inset-0 rounded-[2.5rem] bg-gradient-to-tr from-white/0 via-white/0 to-white/20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"/>
-                        </motion.div>
+                        </div>
                     ))}
                 </div>
             </div>

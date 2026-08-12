@@ -1,5 +1,5 @@
 import {Suspense} from "react";
-import PosContent from "./PosContent";
+import PosContent from "@/components/pos/PosContent";
 
 export default function PosPage() {
   return (

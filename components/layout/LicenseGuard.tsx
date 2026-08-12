@@ -9,12 +9,14 @@ import {Input} from "../ui/input";
 import api from "../../src/lib/axios";
 import {useLicenseWatcher} from "../../src/hooks/useLicenseWatcher";
 import {IPConfigModal} from "./IPConfigModal";
+import {AxiosError} from "axios";
+import {getErrorMessage} from "@/src/lib/errors";
 
 export function LicenseGuard({ children }: { children: React.ReactNode }) {
     const { data: status, isLoading, refetch, error } = useLicense();
     const [activationKey, setActivationKey] = useState("");
     const [isActivating, setIsActivating] = useState(false);
-    const isFraud = (error as any)?.response?.status === 403;
+    const isFraud = error instanceof AxiosError && error.response?.status === 403;
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const handleActivate = async () => {
         if (!activationKey) return;
@@ -31,10 +33,10 @@ export function LicenseGuard({ children }: { children: React.ReactNode }) {
                 toast.success("Système activé !");
             }
             refetch(); // Pour débloquer le Guard
-        } catch (err: any) {
+        } catch (err) {
             // Si 404 ou 401 (Clé invalide)
             setIsActivating(false);
-            toast.error(err.response?.data?.message || "Erreur d'activation");
+            toast.error(getErrorMessage(err, "Erreur d'activation"));
         }
     };
     useLicenseWatcher();

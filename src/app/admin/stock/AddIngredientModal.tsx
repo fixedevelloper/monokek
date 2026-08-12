@@ -9,13 +9,25 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/c
 import {useStockStore} from "@/src/store/use-stock-store";
 import {toast} from "sonner";
 
+interface IngredientFormValues {
+  name: string;
+  unit_id: string;
+  stock: string;
+  alert_qty: string;
+}
+
 export function AddIngredientModal({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
   const { units, addIngredient } = useStockStore();
-  const { register, handleSubmit, reset, setValue } = useForm();
+  const { register, handleSubmit, reset, setValue } = useForm<IngredientFormValues>();
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: IngredientFormValues) => {
     try {
-      await addIngredient(data);
+      await addIngredient({
+        name: data.name,
+        unit_id: Number(data.unit_id),
+        stock: Number(data.stock) || 0,
+        alert_qty: Number(data.alert_qty) || 0,
+      });
       toast.success("Ingrédient ajouté au stock");
       reset();
       onOpenChange(false);

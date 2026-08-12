@@ -9,8 +9,8 @@ import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
 import {format} from "date-fns";
 import {fr} from "date-fns/locale";
 import {cn} from '@/src/lib/utils';
-import {useEcho} from '@/src/hooks/useEcho';
-import api from '@/src/lib/axios';
+import {useNotifications} from '@/src/providers/NotificationsProvider';
+import * as orderingApi from '@/src/lib/api/ordering';
 import {Order} from '@/src/types/menus';
 
 export default function WaiterHistory() {
@@ -18,7 +18,7 @@ export default function WaiterHistory() {
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [activeStatus, setActiveStatus] = useState('all');
-  const echo = useEcho();
+  const {on} = useNotifications();
 
   const statuses = [
     { id: 'all', label: 'Tous', icon: Filter },
@@ -31,12 +31,11 @@ export default function WaiterHistory() {
   const fetchMyOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams({
-        date: date ? format(date, 'yyyy-MM-dd') : '',
-        status: activeStatus
+      const orders = await orderingApi.waiterOrders({
+        date: date ? format(date, 'yyyy-MM-dd') : undefined,
+        status: activeStatus === 'all' ? undefined : activeStatus,
       });
-      const res = await api.get(`/api/pos/waiter/orders?${params}`);
-      setOrders(res.data.data);
+      setOrders(orders);
     } catch (error) {
       console.error("Erreur filtre serveur:", error);
     } finally {
@@ -48,23 +47,23 @@ export default function WaiterHistory() {
     fetchMyOrders();
   }, [fetchMyOrders]);
 
-  // Écoute WebSocket (uniquement pour la date du jour)
+  // Écoute SSE (uniquement pour la date du jour) — payload léger, on refetch plutôt que de patcher.
   useEffect(() => {
-    if (!echo || date?.toDateString() !== new Date().toDateString()) return;
+    if (date?.toDateString() !== new Date().toDateString()) return;
 
-    const channel = echo.channel('orders')
-      .listen('.order.updated', (updatedOrder: any) => {
-        setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
-      });
-    new Audio('/sounds/notification.mp3').play();
-    return () => echo.leaveChannel('orders');
-  }, [echo, date]);
+    const off = on('order.updated', () => {
+      fetchMyOrders();
+      new Audio('/sounds/notification.mp3').play().catch(() => {});
+    });
+
+    return off;
+  }, [on, date, fetchMyOrders]);
   const handleServeOrder = async (orderId: number) => {
     try {
       // Optionnel: Optimistic UI update pour plus de réactivité
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'completed' } : o));
 
-      await api.post(`/api/pos/orders/${orderId}/serve`);
+      await orderingApi.markAsServed(orderId);
     } catch (error) {
       console.error("Erreur lors du marquage comme servi", error);
       // Recharger en cas d'erreur

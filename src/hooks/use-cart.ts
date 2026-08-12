@@ -2,16 +2,30 @@
 "use client";
 import { formatCurrency } from "../lib/formatCurrency";
 import { CartItem, useCartStore } from "../store/use-cart-store";
+import { ModifierItem, Product } from "@/src/types/menus";
 
 
 
 import { toast as sonnerToast } from "sonner"; // Recommandé pour Next.js
 
+interface ToastOptions {
+  title: string;
+  description?: string;
+  variant?: "default" | "destructive";
+  duration?: number;
+}
+
+interface CartVariant {
+  id: number;
+  name: string;
+  price: number | string;
+}
+
 /**
  * Hook utilitaire pour les notifications
  */
 export const useToast = () => {
-  const toast = ({ title, description, variant, duration = 3000 }: any) => {
+  const toast = ({ title, description, variant, duration = 3000 }: ToastOptions) => {
     const options = {
       description,
       duration,
@@ -36,11 +50,11 @@ export const useCart = () => {
   /**
    * Ajoute un produit avec validation et calcul de prix
    */
-  const addToCart = (product: any, variant?: any, selectedModifiers: any[] = []) => {
+  const addToCart = (product: Product, variant?: CartVariant, selectedModifiers: ModifierItem[] = []) => {
     try {
       // Calcul du prix total de l'item (Base + Variante + Modificateurs)
-      const basePrice = variant ? parseFloat(variant.price) : parseFloat(product.price);
-      const modifiersTotal = selectedModifiers.reduce((acc, m) => acc + parseFloat(m.price || 0), 0);
+      const basePrice = variant ? Number(variant.price) : product.price;
+      const modifiersTotal = selectedModifiers.reduce((acc, m) => acc + (m.price || 0), 0);
       const finalPrice = basePrice + modifiersTotal;
 
       const cartItem: CartItem = {
@@ -53,7 +67,7 @@ export const useCart = () => {
         modifiers: selectedModifiers.map(m => ({
           id: m.id,
           name: m.name,
-          price: parseFloat(m.price || 0),
+          price: m.price || 0,
           quantity: m.quantity
         })),
         id: ""

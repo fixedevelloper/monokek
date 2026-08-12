@@ -5,38 +5,26 @@ import {Button} from "@/components/ui/button";
 import {ScrollArea} from "@/components/ui/scroll-area";
 import {Layers, Loader2, Save} from "lucide-react";
 import {toast} from "sonner";
-import api from "../../../lib/axios";
+import * as catalogApi from "../../../lib/api/catalog";
 import {ModifierGroupCard} from "./ModifierGroupCard";
-
-// Typage basique pour TypeScript (optionnel mais recommandé)
-interface ModifierItem {
-  id: number;
-  name: string;
-  price: number;
-}
-
-interface ModifierGroup {
-  id: number;
-  name: string;
-  items?: ModifierItem[];
-}
+import {Modifier, Product} from "../../../types/menus";
 
 interface SupplementSheetProps {
-  product: any; // Idéalement typer ton produit
+  product: Product | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  allModifiersGroups: ModifierGroup[];
+  allModifiersGroups: Modifier[];
   isLoadingGroups?: boolean; // Ajouté pour gérer le chargement global
 }
 
-export function SupplementSheet({ product, open, onOpenChange, allModifiersGroups }: any) {
+export function SupplementSheet({ product, open, onOpenChange, allModifiersGroups }: SupplementSheetProps) {
   const queryClient = useQueryClient();
   const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (open && product?.modifiers) {
-      setSelectedGroupIds(product.modifiers.map((m: any) => m.id));
+      setSelectedGroupIds(product.modifiers.map((m) => m.id));
     }
   }, [product, open]);
 
@@ -45,9 +33,10 @@ export function SupplementSheet({ product, open, onOpenChange, allModifiersGroup
   };
 
   const handleSave = async () => {
+    if (!product) return;
     setLoading(true);
     try {
-      await api.post(`/api/admin/products/${product.id}/sync-modifiers`, { modifier_ids: selectedGroupIds });
+      await catalogApi.syncModifiers(product.id, selectedGroupIds);
       queryClient.invalidateQueries({ queryKey: ['products'] });
       toast.success("Produit configuré avec succès !");
       onOpenChange(false);
@@ -83,7 +72,7 @@ export function SupplementSheet({ product, open, onOpenChange, allModifiersGroup
 
           <ScrollArea className="flex-1 w-full h-160">
             <div className="p-8 space-y-4">
-              {allModifiersGroups.map((group: any) => (
+              {allModifiersGroups.map((group) => (
                   <ModifierGroupCard
                       key={group.id}
                       group={group}

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowLeft, CreditCard, Database, Loader2, PrinterX,
+  ArrowLeft, ChefHat, CreditCard, Database, Loader2, PrinterX,
   RefreshCw, Save, ShieldCheck, Store
 } from 'lucide-react';
 import { Input } from "@/components/ui/input";
@@ -20,25 +20,45 @@ import { toast } from "sonner";
 import { list_thermal_printers, ENCODE, print_thermal_printer, type PrintJobRequest } from "tauri-plugin-thermal-printer";
 import {getLocalSettings, initStore, saveLocalSettings} from "../../../lib/storage";
 import {PrinterDialog} from "./PrinterDialogAdd";
+import {StationDialog} from "./StationDialog";
+import {RegisterDialog} from "./RegisterDialog";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {usePrint} from "../../../hooks/use-print";
 import {Printer, PrinterFormValues} from "../../../types/menus";
+import {getErrorMessage} from "@/src/lib/errors";
+import * as kitchenStationApi from "@/src/lib/api/kitchenStation";
+import * as printingApi from "@/src/lib/api/printing";
+import {KitchenStation, STATION_TYPE_LABELS} from "@/src/types/kitchenStation";
+import * as companyApi from "@/src/lib/api/company";
+import * as cashierApi from "@/src/lib/api/cashier";
+import {CashRegister} from "@/src/types/cashier";
+
+interface StoreSettingsForm {
+  store_name?: string;
+  store_phone?: string;
+  store_address?: string;
+  store_bp?: string;
+  store_logo?: string;
+  [key: string]: unknown;
+}
+
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<any>({});
+  const [settings, setSettings] = useState<StoreSettingsForm>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [printerToEdit, setPrinterToEdit] = useState<Printer | null>(null);
+  const [isAddStationModalOpen, setIsAddStationModalOpen] = useState(false);
+  const [stationToEdit, setStationToEdit] = useState<KitchenStation | null>(null);
+  const [isAddRegisterModalOpen, setIsAddRegisterModalOpen] = useState(false);
+  const [registerToEdit, setRegisterToEdit] = useState<CashRegister | null>(null);
   const queryClient = useQueryClient();
   const { processPrintJob } = usePrint();
   // --- LECTURE : fetchPrinters ---
   const { data: printers = [], isLoading } = useQuery({
     queryKey: ['printers'],
-    queryFn: async () => {
-      const response = await api.get('/api/admin/settings/printers');
-      return response.data || response;
-    }
+    queryFn: () => printingApi.listPrinters(),
   });
   interface DeviceFormValues {
     name: string;
@@ -51,18 +71,15 @@ export default function SettingsPage() {
   }
   // --- CRÉATION : handleAddPrinter ---
 // Spécifie les types entre < > : <TypeDonnéesRetour, TypeErreur, TypeVariablesEntrée>
-  const addPrinterMutation = useMutation<any, any, PrinterFormValues>({
-    mutationFn: async (formData: PrinterFormValues) => {
-      return await api.post('/api/admin/settings/printers', formData);
-    },
+  const addPrinterMutation = useMutation<unknown, unknown, PrinterFormValues>({
+    mutationFn: (formData: PrinterFormValues) => printingApi.createPrinter(formData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['printers'] });
       toast.success("Imprimante ajoutée !");
       setIsAddModalOpen(false);
     },
-    onError: (err: any) => {
-      const message = err.response?.data?.message || "Erreur de validation";
-      toast.error(message);
+    onError: (err) => {
+      toast.error(getErrorMessage(err, "Erreur de validation"));
       console.error(err);
     }
   });
@@ -71,7 +88,7 @@ export default function SettingsPage() {
 
 
   const testPrinterMutation = useMutation({
-    mutationFn: async (printer) => {
+    mutationFn: async (printer: Printer) => {
       // On crée un "Faux" Job qui sera traité par ton hook usePrint
       const testJob = {
         id: "TEST_" + Date.now(),
@@ -110,19 +127,112 @@ export default function SettingsPage() {
 
   // --- MISE À JOUR : handleEditPrinter ---
   const updatePrinterMutation = useMutation({
-    mutationFn: async (formData:any) => {
-      // Laravel attend souvent un PUT ou PATCH pour l'update
-      return await api.put(`/api/admin/settings/printers/${formData.id}`, formData);
-    },
+    mutationFn: (formData: PrinterFormValues & { id: Printer['id'] }) => printingApi.updatePrinter(formData.id, formData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['printers'] });
       toast.success("Imprimante mise à jour !");
       setPrinterToEdit(null); // Ferme le modal en réinitialisant l'état
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || "Erreur lors de la modification");
+    onError: (err) => {
+      toast.error(getErrorMessage(err, "Erreur lors de la modification"));
     }
   });
+  // --- STATIONS DE CUISINE ---
+  const { data: stations = [], isLoading: isLoadingStations } = useQuery({
+    queryKey: ['kitchen-stations'],
+    queryFn: () => kitchenStationApi.listStationsAdmin(),
+  });
+
+  const { data: branches = [] } = useQuery({
+    queryKey: ['branches-for-stations'],
+    queryFn: () => companyApi.listBranches(),
+  });
+
+  const addStationMutation = useMutation({
+    mutationFn: (data: { name: string; type: KitchenStation['type']; branchId: string }) => {
+      if (!data.branchId) {
+        throw new Error("Choisissez une succursale.");
+      }
+      return kitchenStationApi.createStation({ branchId: Number(data.branchId), name: data.name, type: data.type });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kitchen-stations'] });
+      toast.success("Station créée !");
+      setIsAddStationModalOpen(false);
+    },
+    onError: (err) => toast.error(getErrorMessage(err, "Erreur lors de la création")),
+  });
+
+  const updateStationMutation = useMutation({
+    mutationFn: (data: { id: number; name: string; type: KitchenStation['type'] }) =>
+        kitchenStationApi.updateStation(data.id, { name: data.name, type: data.type }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kitchen-stations'] });
+      toast.success("Station mise à jour !");
+      setStationToEdit(null);
+    },
+    onError: (err) => toast.error(getErrorMessage(err, "Erreur lors de la modification")),
+  });
+
+  const deleteStationMutation = useMutation({
+    mutationFn: (id: number) => kitchenStationApi.deleteStation(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kitchen-stations'] });
+      toast.success("Station supprimée");
+    },
+    onError: (err) => toast.error(getErrorMessage(err, "Impossible de supprimer cette station")),
+  });
+
+  const handleDeleteStation = (station: KitchenStation) => {
+    if (!confirm(`Supprimer la station "${station.name}" ?`)) return;
+    deleteStationMutation.mutate(station.id);
+  };
+
+  // --- CAISSES ---
+  const { data: registers = [], isLoading: isLoadingRegisters } = useQuery({
+    queryKey: ['cash-registers'],
+    queryFn: () => cashierApi.listRegisters(),
+  });
+
+  const addRegisterMutation = useMutation({
+    mutationFn: (data: { name: string; branchId: string }) => {
+      if (!data.branchId) {
+        throw new Error("Choisissez une succursale.");
+      }
+      return cashierApi.storeRegister({ name: data.name, branchId: Number(data.branchId) });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cash-registers'] });
+      toast.success("Caisse créée !");
+      setIsAddRegisterModalOpen(false);
+    },
+    onError: (err) => toast.error(getErrorMessage(err, "Erreur lors de la création")),
+  });
+
+  const updateRegisterMutation = useMutation({
+    mutationFn: (data: { id: number; name: string }) => cashierApi.updateRegister(data.id, { name: data.name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cash-registers'] });
+      toast.success("Caisse mise à jour !");
+      setRegisterToEdit(null);
+    },
+    onError: (err) => toast.error(getErrorMessage(err, "Erreur lors de la modification")),
+  });
+
+  const deleteRegisterMutation = useMutation({
+    mutationFn: (id: number) => cashierApi.deleteRegister(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cash-registers'] });
+      toast.success("Caisse supprimée");
+    },
+    onError: (err) => toast.error(getErrorMessage(err, "Impossible de supprimer cette caisse")),
+  });
+
+  const handleDeleteRegister = (reg: CashRegister) => {
+    if (!confirm(`Supprimer la caisse "${reg.name}" ? Impossible si elle a déjà des sessions enregistrées.`)) return;
+    deleteRegisterMutation.mutate(reg.id);
+  };
+
   useEffect(() => {
     const init = async () => {
       await initStore();
@@ -148,8 +258,8 @@ export default function SettingsPage() {
   };
 
 
-  const updateSetting = (key: string, value: any) => {
-    setSettings((prev: any) => ({ ...prev, [key]: value }));
+  const updateSetting = <K extends keyof StoreSettingsForm>(key: K, value: StoreSettingsForm[K]) => {
+    setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleSave = async () => {
@@ -210,6 +320,12 @@ export default function SettingsPage() {
             <TabsTrigger value="printing" className="rounded-lg px-6 font-bold uppercase text-xs gap-2">
               <PrinterX size={14} /> Impression
             </TabsTrigger>
+            <TabsTrigger value="stations" className="rounded-lg px-6 font-bold uppercase text-xs gap-2">
+              <ChefHat size={14} /> Stations
+            </TabsTrigger>
+            <TabsTrigger value="registers" className="rounded-lg px-6 font-bold uppercase text-xs gap-2">
+              <CreditCard size={14} /> Caisses
+            </TabsTrigger>
             <TabsTrigger value="security" className="rounded-lg px-6 font-bold uppercase text-xs gap-2">
               <ShieldCheck size={14} /> Système
             </TabsTrigger>
@@ -240,7 +356,7 @@ export default function SettingsPage() {
 
               <CardContent className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {printers.map((printer:any) => (
+                  {printers.map((printer: Printer) => (
                       <Card key={printer.id} className="group border border-slate-100 shadow-none rounded-3xl hover:border-primary/50 transition-all duration-300">
                         <CardContent className="p-5">
                           <div className="flex justify-between items-start mb-4">
@@ -301,6 +417,169 @@ export default function SettingsPage() {
                     <span className="text-[10px] font-black uppercase text-slate-400">Nouvelle Imprimante</span>
                   </button>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* --- ONGLET STATIONS DE CUISINE --- */}
+          <TabsContent value="stations" className="space-y-6">
+            <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
+              <CardHeader className="bg-white dark:bg-slate-900 border-b border-slate-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                      <ChefHat size={24} />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-black uppercase italic">Stations de cuisine</CardTitle>
+                      <CardDescription className="text-[10px] font-bold uppercase">
+                        Le type détermine par exemple quelle station alimente le Comptoir Bar
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <Button size="sm" className="rounded-xl gap-2 font-bold uppercase text-[10px]" onClick={() => setIsAddStationModalOpen(true)}>
+                    <Plus size={16} />
+                    Ajouter
+                  </Button>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-6">
+                {isLoadingStations ? (
+                    <Loader2 className="animate-spin text-primary h-8 w-8 mx-auto" />
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {stations.map((station) => (
+                          <Card key={station.id} className="group border border-slate-100 shadow-none rounded-3xl hover:border-primary/50 transition-all duration-300">
+                            <CardContent className="p-5">
+                              <div className="flex justify-between items-start mb-4">
+                                <div className="p-3 rounded-2xl bg-primary/10 text-primary">
+                                  <ChefHat size={20} />
+                                </div>
+                                <Badge className="text-[9px] uppercase">{STATION_TYPE_LABELS[station.type]}</Badge>
+                              </div>
+
+                              <div className="space-y-1 mb-6">
+                                <h4 className="font-bold text-slate-800 dark:text-slate-100">{station.name}</h4>
+                                <p className="text-[11px] text-slate-500 font-mono">
+                                  {station.pendingTicketsCount} ticket(s) en attente
+                                </p>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="rounded-xl gap-2 text-[10px] uppercase font-bold border-slate-100"
+                                    onClick={() => setStationToEdit(station)}
+                                >
+                                  <Settings2 size={12} />
+                                  Éditer
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="rounded-xl gap-2 text-[10px] uppercase font-bold border-slate-100 hover:bg-red-50 hover:text-red-600 hover:border-red-100"
+                                    onClick={() => handleDeleteStation(station)}
+                                >
+                                  <Trash2 size={12} />
+                                  Supprimer
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                      ))}
+
+                      <button
+                          onClick={() => setIsAddStationModalOpen(true)}
+                          className="group border-2 border-dashed border-slate-100 rounded-3xl flex flex-col items-center justify-center p-6 hover:bg-slate-50 transition-all gap-2"
+                      >
+                        <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:scale-110 transition-transform">
+                          <Plus size={20} />
+                        </div>
+                        <span className="text-[10px] font-black uppercase text-slate-400">Nouvelle Station</span>
+                      </button>
+                    </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* --- ONGLET CAISSES --- */}
+          <TabsContent value="registers" className="space-y-6">
+            <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
+              <CardHeader className="bg-white dark:bg-slate-900 border-b border-slate-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                      <CreditCard size={24} />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-black uppercase italic">Caisses</CardTitle>
+                      <CardDescription className="text-[10px] font-bold uppercase">
+                        Postes d'encaissement sélectionnables depuis le terminal POS
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <Button size="sm" className="rounded-xl gap-2 font-bold uppercase text-[10px]" onClick={() => setIsAddRegisterModalOpen(true)}>
+                    <Plus size={16} />
+                    Ajouter
+                  </Button>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-6">
+                {isLoadingRegisters ? (
+                    <Loader2 className="animate-spin text-primary h-8 w-8 mx-auto" />
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {registers.map((reg) => (
+                          <Card key={reg.id} className="group border border-slate-100 shadow-none rounded-3xl hover:border-primary/50 transition-all duration-300">
+                            <CardContent className="p-5">
+                              <div className="p-3 rounded-2xl bg-primary/10 text-primary w-fit mb-4">
+                                <CreditCard size={20} />
+                              </div>
+
+                              <div className="space-y-1 mb-6">
+                                <h4 className="font-bold text-slate-800 dark:text-slate-100">{reg.name}</h4>
+                                <p className="text-[11px] text-slate-500 font-mono">ID: {reg.id}</p>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="rounded-xl gap-2 text-[10px] uppercase font-bold border-slate-100"
+                                    onClick={() => setRegisterToEdit(reg)}
+                                >
+                                  <Settings2 size={12} />
+                                  Éditer
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="rounded-xl gap-2 text-[10px] uppercase font-bold border-slate-100 hover:bg-red-50 hover:text-red-600 hover:border-red-100"
+                                    onClick={() => handleDeleteRegister(reg)}
+                                >
+                                  <Trash2 size={12} />
+                                  Supprimer
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                      ))}
+
+                      <button
+                          onClick={() => setIsAddRegisterModalOpen(true)}
+                          className="group border-2 border-dashed border-slate-100 rounded-3xl flex flex-col items-center justify-center p-6 hover:bg-slate-50 transition-all gap-2"
+                      >
+                        <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:scale-110 transition-transform">
+                          <Plus size={20} />
+                        </div>
+                        <span className="text-[10px] font-black uppercase text-slate-400">Nouvelle Caisse</span>
+                      </button>
+                    </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -398,6 +677,7 @@ export default function SettingsPage() {
 
         </Tabs>
         <PrinterDialog
+            branches={branches}
             open={!!printerToEdit || isAddModalOpen}
             onOpenChange={(open) => {
               if(!open) {
@@ -417,6 +697,44 @@ export default function SettingsPage() {
                 });
               } else {
                 addPrinterMutation.mutate(data);
+              }
+            }}
+        />
+        <StationDialog
+            open={!!stationToEdit || isAddStationModalOpen}
+            onOpenChange={(open) => {
+              if (!open) {
+                setStationToEdit(null);
+                setIsAddStationModalOpen(false);
+              }
+            }}
+            initialData={stationToEdit}
+            branches={branches}
+            isPending={addStationMutation.isPending || updateStationMutation.isPending}
+            onSubmit={(data) => {
+              if (stationToEdit) {
+                updateStationMutation.mutate({ id: stationToEdit.id, ...data });
+              } else {
+                addStationMutation.mutate(data);
+              }
+            }}
+        />
+        <RegisterDialog
+            open={!!registerToEdit || isAddRegisterModalOpen}
+            onOpenChange={(open) => {
+              if (!open) {
+                setRegisterToEdit(null);
+                setIsAddRegisterModalOpen(false);
+              }
+            }}
+            initialData={registerToEdit}
+            branches={branches}
+            isPending={addRegisterMutation.isPending || updateRegisterMutation.isPending}
+            onSubmit={(data) => {
+              if (registerToEdit) {
+                updateRegisterMutation.mutate({ id: registerToEdit.id, ...data });
+              } else {
+                addRegisterMutation.mutate(data);
               }
             }}
         />

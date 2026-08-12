@@ -1,17 +1,18 @@
 import { invoke } from '@tauri-apps/api/core';
+import { Order, Printer } from '../types/menus';
 
 /**
  * Vérifie si l'application s'exécute dans l'environnement Tauri.
  * Version plus robuste pour Tauri v2
  */
 export const isTauri = (): boolean => {
-  return typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__ !== undefined;
+  return typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ !== undefined;
 };
 
 /**
  * GESTION DE L'IMPRESSION (ESC/POS)
  */
-export const printOrderReceipt = async (order: any, printerConfig: any) => {
+export const printOrderReceipt = async (order: Order, printerConfig: Printer) => {
   if (!isTauri()) {
     console.warn("🖨️ Impression simulée (Web) :", order);
     return { success: true, message: "Simulated on web" };
@@ -34,7 +35,7 @@ export const printOrderReceipt = async (order: any, printerConfig: any) => {
 /**
  * SAUVEGARDE HORS-LIGNE
  */
-export const saveOfflineOrder = async (order: any) => {
+export const saveOfflineOrder = async (order: Order) => {
   if (!isTauri()) {
     const key = `offline_order_${Date.now()}`;
     localStorage.setItem(key, JSON.stringify(order));

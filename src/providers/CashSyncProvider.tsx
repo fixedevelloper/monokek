@@ -1,7 +1,7 @@
 // components/providers/CashSyncProvider.tsx
 import { useEffect } from 'react';
 import {useCashStore} from "../store/use-cash-store";
-import api from "../lib/axios";
+import * as cashierApi from "../lib/api/cashier";
 
 
 export function CashSyncProvider({ children }: { children: React.ReactNode }) {
@@ -10,11 +10,11 @@ export function CashSyncProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         const syncCash = async () => {
             try {
-                const response = await api.get('/api/cash/status');
+                const status = await cashierApi.status();
 
-                if (response.data.session) {
+                if (status.session) {
                     // Si le backend a une session, on force le store à true
-                    setSession(response.data.session);
+                    setSession(status.session);
                 } else {
                     // Sinon, on force à false
                     closeSession();

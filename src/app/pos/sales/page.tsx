@@ -3,22 +3,23 @@
 import {useEffect, useState} from 'react';
 import {useRouter} from 'next/navigation';
 import {ArrowRight, Loader2, Monitor} from 'lucide-react';
-import api from "@/src/lib/axios";
+import * as cashierApi from "@/src/lib/api/cashier";
+import {CashRegister} from "@/src/types/cashier";
 import {toast} from "sonner";
 
 export default function RegistersPage() {
-    const [registers, setRegisters] = useState([]);
+    const [registers, setRegisters] = useState<CashRegister[]>([]);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
     useEffect(() => {
-        api.get('api/cash/registers')
-            .then(res => setRegisters(res.data))
+        cashierApi.listRegisters()
+            .then(setRegisters)
             .catch(() => toast.error("Erreur de chargement des caisses"))
             .finally(() => setLoading(false));
     }, []);
 
-    const selectRegister = async (reg: any) => {
+    const selectRegister = async (reg: CashRegister) => {
         const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
         if (isTauri) {
@@ -49,7 +50,7 @@ export default function RegistersPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {registers.map((reg: any) => (
+                    {registers.map((reg) => (
                         <button
                             key={reg.id}
                             onClick={() => selectRegister(reg)}
@@ -60,7 +61,14 @@ export default function RegistersPage() {
                                     <Monitor size={32} />
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-bold text-stone-900">{reg.name}</h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-xl font-bold text-stone-900">{reg.name}</h3>
+                                        {reg.is_open && (
+                                            <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">
+                                                Occupée{reg.opened_by_user_name ? ` — ${reg.opened_by_user_name}` : ''}
+                                            </span>
+                                        )}
+                                    </div>
                                     <p className="text-stone-400 text-sm">ID: {reg.id} • Branch: {reg.branch_id}</p>
                                 </div>
                             </div>
@@ -68,6 +76,9 @@ export default function RegistersPage() {
                         </button>
                     ))}
                 </div>
+                <p className="text-center text-stone-400 text-xs -mt-6">
+                    Choisir une caisse "Occupée" ne l'ouvrira pas tant que la session en cours n'est pas fermée par son titulaire.
+                </p>
             </div>
         </div>
     );

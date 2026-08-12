@@ -11,9 +11,22 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Order } from '@/src/types/menus';
-import api from '@/src/lib/axios';
+import { Order, OrderItem, OrderItemModifier, Round } from '@/src/types/menus';
+import * as orderingApi from '@/src/lib/api/ordering';
 import { useQuery } from '@tanstack/react-query';
+
+// Le backend ne renvoie pas encore les règlements sur OrderDto (aucun champ
+// `payments` côté mapper) — la section "Règlements" ci-dessous reste donc vide
+// tant que ce n'est pas ajouté côté API. Gardé typé plutôt que supprimé pour ne
+// pas changer le comportement actuel de cette page.
+interface PaymentRecord {
+    amount: number;
+    payment_method?: { name: string };
+    payment_method_name?: string;
+}
+interface OrderWithPayments extends Order {
+    payments?: PaymentRecord[];
+}
 // ── Badge statut ─────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
     paid:            { label: 'Payé',      className: 'bg-emerald-100 text-emerald-700' },
@@ -33,10 +46,10 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 // ── Modal détail commande ─────────────────────────────────────────────────────
-function OrderDetailModal({ order, onClose }: { order: Order; onClose: () => void }) {
-    const o        = order as any;
-    const rounds   = o.rounds   ?? [];
-    const payments = o.payments ?? [];
+function OrderDetailModal({ order, onClose }: { order: OrderWithPayments; onClose: () => void }) {
+    const o        = order;
+    const rounds: Round[]         = o.rounds   ?? [];
+    const payments: PaymentRecord[] = o.payments ?? [];
 
     return (
         <div
@@ -74,7 +87,7 @@ function OrderDetailModal({ order, onClose }: { order: Order; onClose: () => voi
                             { icon: User,        label: 'Serveur', value: o.waiter?.name || 'N/A' },
                             { icon: Hash,        label: 'Type',    value: o.type === 'dinein' ? 'Sur place' : o.type },
                             { icon: ReceiptText, label: 'Statut',  value: null, badge: o.status },
-                            { icon: Table2,      label: 'Places',  value: o.table?.seats ? `${o.table.seats} places` : 'N/A' },
+                            { icon: Table2,      label: 'Places',  value: 'N/A' }, // TableRefDto n'expose pas seats côté API
                         ].map(({ icon: Icon, label, value, badge }) => (
                             <div key={label} className="flex items-start gap-2 bg-slate-50 rounded-xl p-3">
                                 <Icon className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
@@ -97,7 +110,7 @@ function OrderDetailModal({ order, onClose }: { order: Order; onClose: () => voi
                                 Services ({rounds.length})
                             </p>
 
-                            {rounds.map((round: any, idx: number) => {
+                            {rounds.map((round: Round, idx: number) => {
                                 const items = round.items ?? [];
                                 if (items.length === 0) return null;
 
@@ -126,7 +139,7 @@ function OrderDetailModal({ order, onClose }: { order: Order; onClose: () => voi
 
                                         {/* Lignes articles */}
                                         <div className="divide-y divide-slate-50">
-                                            {items.map((item: any, iIdx: number) => (
+                                            {items.map((item: OrderItem, iIdx: number) => (
                                                 <div key={item.id ?? iIdx} className="px-4 py-3">
                                                     <div className="flex items-start justify-between gap-2">
                                                         <div className="flex items-start gap-2 min-w-0">
@@ -137,16 +150,11 @@ function OrderDetailModal({ order, onClose }: { order: Order; onClose: () => voi
                                                                 <p className="text-xs font-bold text-slate-800 truncate">
                                                                     {item.product?.name || 'Produit inconnu'}
                                                                 </p>
-                                                                {(item.modifiers ?? []).map((m: any, mIdx: number) => (
+                                                                {(item.modifiers ?? []).map((m: OrderItemModifier, mIdx: number) => (
                                                                     <p key={mIdx} className="text-[10px] text-slate-400 italic">
-                                                                        + {m.modifier_item?.name}
+                                                                        + {m.name}
                                                                     </p>
                                                                 ))}
-                                                                {item.note && (
-                                                                    <p className="text-[10px] text-amber-600 font-bold mt-0.5">
-                                                                        📝 {item.note}
-                                                                    </p>
-                                                                )}
                                                                 <StatusBadge status={item.status} />
                                                             </div>
                                                         </div>
@@ -187,7 +195,7 @@ function OrderDetailModal({ order, onClose }: { order: Order; onClose: () => voi
                                 <CreditCard className="w-3.5 h-3.5" /> Règlements
                             </p>
                             <div className="border border-slate-100 rounded-xl divide-y divide-slate-50 overflow-hidden">
-                                {payments.map((payment: any, idx: number) => (
+                                {payments.map((payment: PaymentRecord, idx: number) => (
                                     <div key={idx} className="flex items-center justify-between px-4 py-3">
                                         <span className="text-xs font-bold text-slate-600">
                                             {payment.payment_method?.name || payment.payment_method_name || 'Espèces'}
@@ -236,13 +244,11 @@ const fetchOrders = async (
     search: string,
     status: string
 ): Promise<Order[]> => {
-    const params = new URLSearchParams({
-        date:   date ? format(date, 'yyyy-MM-dd') : '',
-        search,
-        status,
+    return orderingApi.listOrdersPos({
+        date: date ? format(date, 'yyyy-MM-dd') : undefined,
+        search: search || undefined,
+        status: status === 'all' ? undefined : status,
     });
-    const res = await api.get(`/api/pos/orders?${params.toString()}`);
-    return res.data.data;
 };
 
 export default function HistoryPage() {
@@ -375,11 +381,11 @@ export default function HistoryPage() {
                                 </td>
                                 <td className="p-4 text-xs">
                                         <span className="bg-slate-100 px-2 py-1 rounded font-black uppercase">
-                                            {(order as any).table?.name || "EMPORTÉ"}
+                                            {order.table?.name || "EMPORTÉ"}
                                         </span>
                                 </td>
                                 <td className="p-4 text-xs font-medium text-slate-500">
-                                    {(order as any).waiter?.name || "N/A"}
+                                    {order.waiter?.name || "N/A"}
                                 </td>
                                 <td className="p-4">
                                     <StatusBadge status={order.status} />

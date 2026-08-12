@@ -19,7 +19,7 @@ interface ConfirmDeleteModalProps {
   description?: string;
 }
 
-export function ConfirmDeleteModal({ open, onOpenChange, onConfirm, loading, title, description }: any) {
+export function ConfirmDeleteModal({ open, onOpenChange, onConfirm, loading, title, description }: ConfirmDeleteModalProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl">

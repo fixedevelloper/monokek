@@ -1,13 +1,14 @@
 import {Button} from "@/components/ui/button";
 import {Card} from "@/components/ui/card";
 import {Input} from "@/components/ui/input";
-import api from "@/src/lib/axios";
+import * as cashierApi from "@/src/lib/api/cashier";
 import {useAuthStore} from "@/src/store/use-auth-store";
 import {useCashStore} from "@/src/store/use-cash-store";
 import {Banknote, Loader2} from "lucide-react";
 import {useRouter} from "next/navigation";
 import {useState} from "react";
 import {toast} from "sonner";
+import {getErrorMessage} from "@/src/lib/errors";
 
 export default function CashOpenModal() {
   const [amount, setAmount] = useState('');
@@ -37,16 +38,14 @@ export default function CashOpenModal() {
         registerId = localStorage.getItem("register-id");
       }
 
-      const response = await api.post('api/cash/open', {
-        opening_amount: parseFloat(amount) || 0,
-        register_id: registerId // Utilise l'ID stocké au démarrage
-      });
+      const session = await cashierApi.open(Number(registerId), parseFloat(amount) || 0);
 
-      setSession(response.data);
+      setSession(session);
       toast.success("Session de caisse démarrée");
     } catch (error) {
-      console.log(error)
-      toast.error("Vérifiez l'ID de caisse ou le montant");
+      // Surfaces the backend's real reason (e.g. "Cette caisse est déjà ouverte par X.")
+      // instead of a generic message that hid genuine conflicts like a double-open.
+      toast.error(getErrorMessage(error, "Vérifiez l'ID de caisse ou le montant"));
     } finally {
       setLoading(false);
     }

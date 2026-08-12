@@ -9,21 +9,43 @@ import {useRouter} from "next/navigation";
 import {StockMovement} from '@/src/types/stock';
 import {Card, CardContent} from '@/components/ui/card';
 import {cn} from '@/lib/utils';
+import {useExport} from '@/src/hooks/useExport';
+import {toast} from 'sonner';
 
 export default function StockHistoryPage() {
   const router = useRouter();
   const { movements, isLoading, fetchMovements } = useStockStore();
   const [search, setSearch] = useState("");
+  const { exportToPDF, isExporting } = useExport();
 
   useEffect(() => {
     fetchMovements();
   }, []);
 
   // Filtrage local (nom de l'ingrédient ou raison)
-  const filteredMovements = movements.filter(m => 
-    m.reason?.toLowerCase().includes(search.toLowerCase()) || 
-    m.ingredient?.name.toLowerCase().includes(search.toLowerCase())
+  const filteredMovements = movements.filter(m =>
+    m.reason?.toLowerCase().includes(search.toLowerCase()) ||
+    m.ingredientName?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleExport = () => {
+    if (filteredMovements.length === 0) {
+      toast.error("Aucun mouvement à exporter");
+      return;
+    }
+    exportToPDF({
+      title: "Flux de stock",
+      subtitle: search ? `Filtré : "${search}"` : `${filteredMovements.length} mouvement(s)`,
+      filename: "flux_stock",
+      columns: ['Date', 'Ingrédient', 'Type', 'Quantité', 'Raison'],
+    }, filteredMovements.map((m) => [
+      new Date(m.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      m.ingredientName,
+      m.type,
+      `${m.type === 'out' ? '-' : '+'}${Math.abs(m.qty)}`,
+      m.reason ?? '',
+    ]));
+  };
 
   return (
     <div className="p-8 space-y-8 bg-slate-50/50 min-h-screen">
@@ -45,8 +67,14 @@ export default function StockHistoryPage() {
             <p className="text-muted-foreground font-medium mt-1">Traçabilité complète des inventaires.</p>
           </div>
         </div>
-        <Button variant="outline" className="rounded-2xl border-2 font-black uppercase tracking-widest gap-2 h-14 px-6">
-          <FileText className="h-5 w-5" /> Exporter
+        <Button
+          variant="outline"
+          onClick={handleExport}
+          disabled={isExporting}
+          className="rounded-2xl border-2 font-black uppercase tracking-widest gap-2 h-14 px-6"
+        >
+          {isExporting ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileText className="h-5 w-5" />}
+          Exporter
         </Button>
       </div>
 
@@ -107,7 +135,7 @@ function MovementRow({ movement }: { movement: StockMovement }) {
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <span className="font-black text-lg uppercase tracking-tight text-slate-800 italic">
-                #{movement.ingredient.name}
+                #{movement.ingredientName}
               </span>
               <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 uppercase tracking-widest">
                 {movement.type}
@@ -119,10 +147,10 @@ function MovementRow({ movement }: { movement: StockMovement }) {
           {/* Date et Heure */}
           <div className="text-right hidden md:block">
             <p className="text-sm font-bold text-slate-700">
-              {new Date(movement.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+              {new Date(movement.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
             </p>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">
-              {new Date(movement.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+              {new Date(movement.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
             </p>
           </div>
 

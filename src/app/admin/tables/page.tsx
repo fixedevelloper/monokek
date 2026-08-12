@@ -1,6 +1,6 @@
 'use client'
 
-import React, {useEffect, useState} from 'react';
+import React, {Suspense, useEffect, useState} from 'react';
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 import {Card, CardContent} from "@/components/ui/card";
 import {Badge} from "@/components/ui/badge";
@@ -20,10 +20,10 @@ import {
     Utensils
 } from "lucide-react";
 import {Floor, Table} from '@/src/types/tables'; // Assure-toi que Table est exporté
-import api from '@/src/lib/axios';
+import * as floorplanApi from '@/src/lib/api/floorplan';
 import {toast} from 'sonner';
 import {AddTableModal} from '../../pos/tables/AddTableModal';
-import {useRouter} from 'next/navigation';
+import {useRouter, useSearchParams} from 'next/navigation';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -37,11 +37,21 @@ const statusMap = {
     free: { label: "Disponible", class: "bg-emerald-500/10 text-emerald-600 border-emerald-200", dot: "bg-emerald-500" },
     occupied: { label: "En cours", class: "bg-orange-500/10 text-orange-600 border-orange-200", dot: "bg-orange-500" },
     billing: { label: "Addition", class: "bg-red-500/10 text-red-600 border-red-200 animate-pulse", dot: "bg-red-500" },
-    reserved: { label: "Réservé", class: "bg-blue-500/10 text-blue-600 border-blue-200", dot: "bg-blue-500" },
+    maintenance: { label: "Maintenance", class: "bg-blue-500/10 text-blue-600 border-blue-200", dot: "bg-blue-500" },
 };
 
-export default function RestaurantAdminTables() {
+export default function RestaurantAdminTablesPage() {
+    return (
+        <Suspense fallback={<div>Chargement...</div>}>
+            <RestaurantAdminTables />
+        </Suspense>
+    );
+}
+
+function RestaurantAdminTables() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const requestedFloorId = searchParams.get('floor');
     const [zones, setZones] = useState<Floor[]>([]);
     const [loading, setLoading] = useState(true);
     const [isEditOpen, setIsEditOpen] = useState(false);
@@ -51,9 +61,8 @@ export default function RestaurantAdminTables() {
     const fetchZones = async () => {
         try {
             setLoading(true);
-            const res = await api.get('/api/pos/floors');
-            // On suppose que Laravel retourne { data: [...] } via API Resources
-            setZones(res.data.data || res.data);
+            const zones = await floorplanApi.listFloors();
+            setZones(zones);
         } catch (error) {
             toast.error("Erreur lors du chargement du plan de salle");
         } finally {
@@ -70,7 +79,7 @@ export default function RestaurantAdminTables() {
     };
     const handleDelete = async (id: number) => {
         try {
-            await api.delete(`/api/pos/tables/${id}`);
+            await floorplanApi.deleteTable(id);
             toast.success("Table supprimée");
             fetchZones(); // Rafraîchir les données
         } catch (error) {
@@ -152,7 +161,14 @@ export default function RestaurantAdminTables() {
             {loading ? (
                 <LoadingSkeleton />
             ) : zones.length > 0 ? (
-                <Tabs defaultValue={zones[0].id.toString()} className="space-y-10">
+                <Tabs
+                    defaultValue={
+                        (requestedFloorId && zones.some((z) => z.id.toString() === requestedFloorId))
+                            ? requestedFloorId
+                            : zones[0].id.toString()
+                    }
+                    className="space-y-10"
+                >
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-6 border-b border-stone-200/60 pb-px">
                         <TabsList className="bg-transparent h-auto p-0 flex gap-10">
                             {zones.map((floor) => (
@@ -200,7 +216,7 @@ export default function RestaurantAdminTables() {
                         >
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
                                 {floor.tables.map((table) => (
-                                    <TableCard key={table.id} table={table} onEdit={handleEditClick} />
+                                    <TableCard key={table.id} table={table} onEdit={handleEditClick} onDelete={handleDelete} />
                                 ))}
                             </div>
                         </TabsContent>
@@ -227,7 +243,7 @@ export default function RestaurantAdminTables() {
     );
 }
 
-function TableCard({ table, onEdit }: { table: Table, onEdit: (table: Table) => void }) {
+function TableCard({ table, onEdit, onDelete }: { table: Table, onEdit: (table: Table) => void, onDelete: (id: number) => void }) {
     const status = statusMap[table.status] || statusMap.free;
 
     return (
@@ -303,8 +319,7 @@ function TableCard({ table, onEdit }: { table: Table, onEdit: (table: Table) => 
                             <DropdownMenuItem
                                 onClick={() => {
                                     if (confirm('Supprimer cette table ?')) {
-                                        // Ta logique de suppression vers Laravel ici
-                                        console.log('Supprimer', table.id);
+                                        onDelete(table.id);
                                     }
                                 }}
                                 className="flex items-center gap-2 py-2.5 cursor-pointer rounded-lg text-red-600 focus:bg-red-50 focus:text-red-600"

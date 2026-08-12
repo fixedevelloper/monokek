@@ -1,6 +1,7 @@
 "use client";
 
 import React, {useState} from 'react';
+import dynamic from 'next/dynamic';
 import {
     ArrowDownRight,
     ArrowLeft,
@@ -17,7 +18,6 @@ import {
 } from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
-import {Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis} from 'recharts';
 import {formatCurrency} from '@/src/lib/formatCurrency';
 import {cn} from '@/lib/utils';
 import Link from 'next/link';
@@ -29,20 +29,58 @@ import {Avatar} from "@/components/ui/avatar";
 import {fr} from 'date-fns/locale';
 import {Popover, PopoverClose, PopoverContent, PopoverTrigger} from '@/components/ui/popover';
 import {Calendar} from '@/components/ui/calendar';
+import type {DateRange} from 'react-day-picker';
 import {useExport} from "../../../hooks/useExport";
 
+interface AnalyticsKpis {
+  total_sales: number;
+  orders_count: number;
+  average_cart: number;
+  food_cost: number;
+}
+interface RevenuePoint { date: string; total: number; }
+interface HourlyFlowPoint { hour: number; count: number; }
+interface WaiterPerformance { name: string; orders: number; sales: number; }
+interface PaymentTotal { method_name: string; total: number; }
+interface TopProduct { name: string; qty: number; }
+interface AnalyticsResponse {
+  kpis: AnalyticsKpis;
+  chart_data: RevenuePoint[];
+  hourly_flow: HourlyFlowPoint[];
+  waiters: WaiterPerformance[];
+  payments: PaymentTotal[];
+  top_products: TopProduct[];
+}
+// Contrairement à DateRange (react-day-picker), toujours complète : appliedRange
+// alimente directement les appels format()/API, qui exigent des Date non-optionnelles.
+interface FullDateRange { from: Date; to: Date; }
+
+// recharts (~100KB gzippé) n'est chargé que sur cette page (déjà son propre chunk
+// de route), et seulement côté client une fois montée — ssr:false évite de le
+// tirer dans le rendu serveur/prerender pour un contenu purement interactif.
+const ChartSkeleton = () => (
+    <div className="h-full w-full animate-pulse rounded-2xl bg-slate-100" />
+);
+const RevenueAreaChart = dynamic(() => import('@/components/admin/reports/RevenueAreaChart'), {
+    ssr: false,
+    loading: ChartSkeleton,
+});
+const HourlyFlowBarChart = dynamic(() => import('@/components/admin/reports/HourlyFlowBarChart'), {
+    ssr: false,
+    loading: ChartSkeleton,
+});
 
 export default function ReportsPage() {
   const { exportToPDF, isExporting } = useExport();
 
   // 1. État temporaire (le calendrier)
-  const [dateRange, setDateRange] = useState({
+  const [dateRange, setDateRange] = useState<FullDateRange>({
     from: subDays(new Date(), 30),
     to: new Date()
   });
 
   // 2. État appliqué (la requête API)
-  const [appliedRange, setAppliedRange] = useState(dateRange);
+  const [appliedRange, setAppliedRange] = useState<FullDateRange>(dateRange);
 
   // 3. React Query
   const { data: analytics, isLoading, isFetching } = useQuery({
@@ -53,7 +91,7 @@ export default function ReportsPage() {
       const res = await api.get(`/api/admin/analytics`, {
         params: { start_date: start, end_date: end }
       });
-      return res.data; // On récupère l'objet structuré de l'API
+      return res.data as AnalyticsResponse; // On récupère l'objet structuré de l'API
     }
   });
 
@@ -130,7 +168,9 @@ export default function ReportsPage() {
                       initialFocus
                       mode="range"
                       selected={dateRange}
-                      onSelect={(range: any) => setDateRange(range)}
+                      onSelect={(range: DateRange | undefined) => {
+                        if (range?.from) setDateRange({ from: range.from, to: range.to ?? range.from });
+                      }}
                       numberOfMonths={2}
                       locale={fr}
                       className="p-4"
@@ -173,7 +213,7 @@ export default function ReportsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <ReportStatCard
               title="Chiffre d'Affaires"
-              value={formatCurrency(analytics?.kpis.total_sales)}
+              value={formatCurrency(analytics?.kpis.total_sales ?? 0)}
               trend="+14.2%" up={true} icon={<TrendingUp className="text-emerald-500"/>}
           />
           <ReportStatCard
@@ -183,7 +223,7 @@ export default function ReportsPage() {
           />
           <ReportStatCard
               title="Panier Moyen"
-              value={formatCurrency(analytics?.kpis.average_cart)}
+              value={formatCurrency(analytics?.kpis.average_cart ?? 0)}
               trend="-2.4%" up={false} icon={<Wallet className="text-orange-500"/>}
           />
           <ReportStatCard
@@ -198,23 +238,7 @@ export default function ReportsPage() {
           <Card className="lg:col-span-2 border-none shadow-sm p-6 bg-white rounded-3xl">
             <h3 className="text-xs font-black uppercase mb-6 text-slate-400 tracking-widest">Évolution des recettes</h3>
             <div className="h-[300px] w-full">
-              <ResponsiveContainer>
-                <AreaChart data={analytics?.chart_data}>
-                  <defs>
-                    <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                  <XAxis dataKey="date" tickFormatter={(d) => format(new Date(d), 'dd MMM', {locale: fr})} fontSize={10} />
-                  <Tooltip
-                      formatter={(v: any) => [formatCurrency(v), "Recette"]}
-                      contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}
-                  />
-                  <Area type="monotone" dataKey="total" stroke="#4f46e5" fill="url(#colorTotal)" strokeWidth={4} />
-                </AreaChart>
-              </ResponsiveContainer>
+              <RevenueAreaChart data={analytics?.chart_data} />
             </div>
           </Card>
 
@@ -223,13 +247,7 @@ export default function ReportsPage() {
               <Clock size={14} /> Heures de pointe
             </h3>
             <div className="h-[300px] w-full">
-              <ResponsiveContainer>
-                <BarChart data={analytics?.hourly_flow}>
-                  <XAxis dataKey="hour" tickFormatter={(h) => `${h}h`} fontSize={10} />
-                  <Bar dataKey="count" fill="#4f46e5" radius={[6, 6, 0, 0]} />
-                  <Tooltip cursor={{fill: 'transparent'}} />
-                </BarChart>
-              </ResponsiveContainer>
+              <HourlyFlowBarChart data={analytics?.hourly_flow} />
             </div>
           </Card>
         </div>
@@ -241,7 +259,7 @@ export default function ReportsPage() {
               <CardTitle className="text-sm font-black uppercase italic">Performance Serveurs</CardTitle>
             </CardHeader>
             <div className="space-y-6">
-              {analytics?.waiters.map((waiter: any) => (
+              {analytics?.waiters.map((waiter: WaiterPerformance) => (
                   <div key={waiter.name} className="space-y-2">
                     <div className="flex justify-between items-end">
                       <div className="flex items-center gap-3">
@@ -266,7 +284,7 @@ export default function ReportsPage() {
               <CardTitle className="text-sm font-black uppercase italic">Modes d'encaissement</CardTitle>
             </CardHeader>
             <div className="grid grid-cols-2 gap-4 h-full content-center">
-              {analytics?.payments.map((p: any) => (
+              {analytics?.payments.map((p: PaymentTotal) => (
                   <div key={p.method_name} className="p-6 rounded-3xl bg-indigo-50/30 border border-dashed border-indigo-100 flex flex-col items-center justify-center">
                     <span className="text-[9px] font-black uppercase text-muted-foreground mb-1">{p.method_name}</span>
                     <span className="text-xl font-black text-slate-800">{formatCurrency(p.total)}</span>
@@ -284,7 +302,7 @@ export default function ReportsPage() {
             </CardTitle>
           </CardHeader>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {analytics?.top_products.map((product: any, index: number) => (
+            {analytics?.top_products.map((product: TopProduct, index: number) => (
                 <div key={product.name} className="relative p-4 rounded-2xl bg-slate-50 border border-transparent hover:border-indigo-100 transition-all">
                   <span className="absolute top-2 right-3 text-2xl font-black text-slate-200">#{index + 1}</span>
                   <p className="text-[11px] font-black uppercase truncate pr-6">{product.name}</p>
@@ -301,7 +319,14 @@ export default function ReportsPage() {
 }
 
 // Composants internes utilitaires
-function ReportStatCard({ title, value, trend, up, icon }: any) {
+interface ReportStatCardProps {
+  title: string;
+  value: string | number | undefined;
+  trend: string;
+  up: boolean;
+  icon: React.ReactNode;
+}
+function ReportStatCard({ title, value, trend, up, icon }: ReportStatCardProps) {
   return (
     <Card className="border-none shadow-sm overflow-hidden relative">
       <CardContent className="p-6">
@@ -324,7 +349,7 @@ function ReportStatCard({ title, value, trend, up, icon }: any) {
   );
 }
 
-function CategoryProgress({ label, percent, color }: any) {
+function CategoryProgress({ label, percent, color }: { label: string; percent: number; color: string }) {
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-[10px] font-black uppercase">
