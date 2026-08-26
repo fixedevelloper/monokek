@@ -14,13 +14,23 @@ interface AuthState {
   // Data
   user: User | null;
   token: string | null;
+  /** Long-lived (30d) — exchanged at {@code /oauth2/token} (refresh_token grant) by the axios
+   * response interceptor whenever the short-lived access token expires mid-session, instead of
+   * forcing a hard logout. Null for a user with no assigned client refresh token (shouldn't
+   * normally happen for the POS client, but the backend can return null — see LoginResponse). */
+  refreshToken: string | null;
+  /** Epoch ms the current access token expires at — informational only today (the interceptor
+   * reacts to a real 401 rather than pre-emptively refreshing off this). */
+  tokenExpiresAt: number | null;
   isAuthenticated: boolean;
   currentSessionId: number | null; // ID de la cash_session active
   /** True once the persisted store has finished reading localStorage — see RouteGuard for why this matters. */
   hasHydrated: boolean;
 
   // Actions
-  login: (user: User, token: string) => void;
+  login: (user: User, token: string, refreshToken: string | null, expiresInSeconds: number) => void;
+  /** Swaps in a fresh access/refresh token pair after a silent refresh — leaves user/isAuthenticated untouched. */
+  setTokens: (token: string, refreshToken: string | null, expiresInSeconds: number) => void;
   logout: () => void;
   setCashSession: (sessionId: number | null) => void;
   hasPermission: (permission: string) => boolean;
@@ -32,21 +42,33 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       token: null,
+      refreshToken: null,
+      tokenExpiresAt: null,
       isAuthenticated: false,
       currentSessionId: null,
       hasHydrated: false,
 
-      login: (user, token) => set({ 
-        user, 
-        token, 
-        isAuthenticated: true 
+      login: (user, token, refreshToken, expiresInSeconds) => set({
+        user,
+        token,
+        refreshToken,
+        tokenExpiresAt: Date.now() + expiresInSeconds * 1000,
+        isAuthenticated: true
       }),
 
-      logout: () => set({ 
-        user: null, 
-        token: null, 
+      setTokens: (token, refreshToken, expiresInSeconds) => set({
+        token,
+        refreshToken,
+        tokenExpiresAt: Date.now() + expiresInSeconds * 1000,
+      }),
+
+      logout: () => set({
+        user: null,
+        token: null,
+        refreshToken: null,
+        tokenExpiresAt: null,
         isAuthenticated: false,
-        currentSessionId: null 
+        currentSessionId: null
       }),
 
       setCashSession: (sessionId) => set({ 

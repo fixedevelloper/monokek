@@ -19,6 +19,9 @@ export const useLicense = () => {
         },
         // On vérifie le statut toutes les 30 minutes au cas où la licence expire en plein milieu
         refetchInterval: 1000 * 60 * 30,
-        retry: false,
+        // Une coupure réseau de quelques secondes ne doit pas immédiatement afficher
+        // "Activation Requise" à du personnel déjà licencié — voir LicenseGuard, qui
+        // distingue explicitement erreur réseau et licence réellement invalide.
+        retry: 2,
     });
 };

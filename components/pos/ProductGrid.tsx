@@ -83,8 +83,8 @@ export default function ProductGrid({ products, categories }: ProductGridProps) 
 
                   {/* Placeholder Image ou Image du produit */}
                   <div className="flex-1 bg-muted flex items-center justify-center overflow-hidden">
-                    {product.sku ? (
-                      <img src={product.sku} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+                    {product.image_url ? (
+                      <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
                     ) : (
                       <UtensilsCrossed className="h-10 w-10 text-muted-foreground/40" />
                     )}

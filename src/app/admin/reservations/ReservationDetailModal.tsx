@@ -4,8 +4,7 @@ import {Dialog, DialogContent,} from "@/components/ui/dialog";
 import {Badge} from "@/components/ui/badge";
 import {Separator} from "@/components/ui/separator";
 import {Calendar, Printer, User} from "lucide-react";
-import {format} from "date-fns";
-import {fr} from "date-fns/locale";
+import {formatPickupDate} from "../../../lib/formatDate";
 import {Button} from "@/components/ui/button";
 import {formatCurrency} from "../../../lib/formatCurrency";
 import {OrderItem, Reservation} from "@/src/types/menus";
@@ -56,10 +55,10 @@ export function ReservationDetailModal({ open, onOpenChange, reservation, onPaym
                                 <Calendar size={12} /> Date & Heure
                             </p>
                             <p className="font-black text-sm text-slate-900">
-                                {format(new Date(reservation.pickup_date), "dd MMMM yyyy", { locale: fr })}
+                                {formatPickupDate(reservation.pickup_date, "dd MMMM yyyy")}
                             </p>
                             <p className="text-xs font-black text-primary uppercase italic">
-                                À {format(new Date(reservation.pickup_date), "HH:mm")}
+                                À {formatPickupDate(reservation.pickup_date, "HH:mm", false)}
                             </p>
                         </div>
                     </div>

@@ -16,10 +16,12 @@ export interface ProductDto {
     id: number;
     categoryId: number;
     categoryName: string;
+    branchId: number | null;
     sku: string | null;
     name: string;
     description: string | null;
     price: number;
+    purchasePrice: number | null;
     incentiveAmount: number;
     formattedPrice: string;
     active: boolean;
@@ -63,6 +65,7 @@ export interface CreateProductRequestDto {
     name: string;
     sku?: string;
     price: number;
+    purchasePrice?: number;
     incentiveAmount?: number;
     stockCount?: number;
     alertStock?: number;
@@ -72,19 +75,40 @@ export interface CreateProductRequestDto {
     description?: string;
 }
 
+/** stockCount is deliberately absent — the product edit form can no longer move stock directly,
+ * see AdjustProductStockRequestDto/adjustProductStock for the only remaining path. */
 export interface UpdateProductRequestDto {
     categoryId?: number;
     name?: string;
     sku?: string;
     price?: number;
+    purchasePrice?: number;
     incentiveAmount?: number;
-    stockCount?: number;
     alertStock?: number;
     type?: string;
     trackStock?: boolean;
     active?: boolean;
     image?: string;
     description?: string;
+}
+
+/** type is 'in' | 'out' | 'adjust'. For 'in'/'out', qty is the quantity moved. For 'adjust', qty is
+ * the new absolute stock count from a physical count — the backend computes and records the delta. */
+export interface AdjustProductStockRequestDto {
+    type: 'in' | 'out' | 'adjust';
+    qty: number;
+    reason?: string;
+}
+
+export interface ProductStockMovementDto {
+    id: number;
+    productId: number;
+    type: 'in' | 'out' | 'adjust';
+    qty: number;
+    reason: string | null;
+    authorId: number;
+    authorName: string;
+    createdAt: string | null;
 }
 
 export interface BulkImportLineDto {

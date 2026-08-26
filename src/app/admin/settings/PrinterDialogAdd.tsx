@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
     Dialog, DialogContent, DialogHeader,
@@ -11,9 +11,10 @@ import {
     Select, SelectContent, SelectItem,
     SelectTrigger, SelectValue
 } from "@/components/ui/select";
-import { Printer, Globe, Usb, Save, PlusCircle } from "lucide-react";
+import { Printer, Globe, Usb, Save, PlusCircle, RefreshCw } from "lucide-react";
 import {PrinterFormValues} from "../../../types/menus";
 import {Branch} from "@/src/types/company";
+import { isTauri } from "@tauri-apps/api/core";
 
 interface PrinterDialogProps {
     open: boolean;
@@ -45,11 +46,36 @@ export const PrinterDialog = ({
             location: "receipt", // Valeurs par défaut indispensables
             paper_width: "80",
             char_per_line: 42,
-            use_beep: true
+            use_beep: true,
+            os_printer_name: ""
         }
     });
 
     const connectionType = watch("connection");
+
+    const [availablePrinters, setAvailablePrinters] = useState<string[]>([]);
+    const [loadingPrinters, setLoadingPrinters] = useState(false);
+
+    const refreshAvailablePrinters = async () => {
+        if (!isTauri()) return;
+        setLoadingPrinters(true);
+        try {
+            const { list_thermal_printers } = await import("tauri-plugin-thermal-printer");
+            const printers = await list_thermal_printers();
+            setAvailablePrinters(printers.map((p) => p.name));
+        } catch (error) {
+            console.error("[PrinterDialog] Impossible de lister les imprimantes locales :", error);
+        } finally {
+            setLoadingPrinters(false);
+        }
+    };
+
+    useEffect(() => {
+        if (open && connectionType === "usb") {
+            refreshAvailablePrinters();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, connectionType]);
 
     useEffect(() => {
         if (open) {
@@ -61,7 +87,8 @@ export const PrinterDialog = ({
                     location: initialData.location || "receipt",
                     paper_width: initialData.paper_width || "80",
                     use_beep: initialData.use_beep ?? true,
-                    char_per_line: initialData.char_per_line || 42
+                    char_per_line: initialData.char_per_line || 42,
+                    os_printer_name: initialData.os_printer_name || ""
                 } as PrinterFormValues);
             } else {
                 reset({
@@ -74,7 +101,8 @@ export const PrinterDialog = ({
                     location: "receipt",
                     paper_width: "80",
                     char_per_line: 42,
-                    use_beep: true
+                    use_beep: true,
+                    os_printer_name: ""
                 });
             }
         }
@@ -189,6 +217,42 @@ export const PrinterDialog = ({
                                     className="rounded-2xl border-slate-100 bg-slate-50/50 h-12 font-bold"
                                 />
                             </div>
+                        </div>
+                    )}
+
+                    {connectionType === "usb" && (
+                        <div className="space-y-2 animate-in fade-in zoom-in-95 duration-300">
+                            <div className="flex items-center justify-between ml-1">
+                                <Label className="text-[10px] font-black uppercase text-slate-500">Imprimante locale (OS)</Label>
+                                <button
+                                    type="button"
+                                    onClick={refreshAvailablePrinters}
+                                    disabled={loadingPrinters}
+                                    className="text-slate-400 hover:text-primary transition-colors"
+                                >
+                                    <RefreshCw size={12} className={loadingPrinters ? "animate-spin" : ""} />
+                                </button>
+                            </div>
+                            {isTauri() ? (
+                                <Select onValueChange={(v) => setValue("os_printer_name", v)} value={watch("os_printer_name")}>
+                                    <SelectTrigger className="rounded-2xl border-slate-100 bg-slate-50/50 h-12 font-bold">
+                                        <SelectValue placeholder={loadingPrinters ? "Recherche..." : "Choisir une imprimante"} />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-xl font-bold">
+                                        {availablePrinters.length === 0 ? (
+                                            <div className="px-3 py-2 text-[10px] font-bold uppercase text-slate-400">Aucune imprimante détectée</div>
+                                        ) : (
+                                            availablePrinters.map((name) => (
+                                                <SelectItem key={name} value={name}>{name}</SelectItem>
+                                            ))
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <p className="text-[10px] font-bold uppercase text-slate-400 ml-1">
+                                    Disponible uniquement depuis l'application de bureau
+                                </p>
+                            )}
                         </div>
                     )}
 

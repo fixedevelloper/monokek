@@ -61,13 +61,9 @@ export const useStockStore = create<StockState>((set, get) => ({
   },
 
   addIngredient: async (payload) => {
-    try {
-      // POST /api/admin/ingredients returns the created IngredientDto directly, not wrapped in {data: ...}.
-      const { data } = await api.post("/api/admin/ingredients", payload);
-      set({ ingredients: [data, ...get().ingredients] });
-    } catch (e) {
-      console.error(e);
-    }
+    // POST /api/admin/ingredients returns the created IngredientDto directly, not wrapped in {data: ...}.
+    const { data } = await api.post("/api/admin/ingredients", payload);
+    set({ ingredients: [data, ...get().ingredients] });
   },
 
   adjustStock: async (id: number, payload: StockAdjustmentInput) => {

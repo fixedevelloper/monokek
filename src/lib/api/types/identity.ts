@@ -15,6 +15,8 @@ export interface UserSummaryDto {
 export interface LoginResponseDto {
     user: UserSummaryDto;
     token: string;
+    refreshToken: string | null;
+    expiresInSeconds: number;
 }
 
 export interface StaffDto {

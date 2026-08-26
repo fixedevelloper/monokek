@@ -14,6 +14,7 @@ import {usePathname, useRouter} from 'next/navigation';
 import {cn} from "@/lib/utils";
 import {LicenseGuard} from "../../components/layout/LicenseGuard";
 import {NotificationsProvider} from "../providers/NotificationsProvider";
+import {UsbPrintQueueWorker} from "../components/printing/UsbPrintQueueWorker";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -88,6 +89,7 @@ export default function RootLayout({
 
               <LockScreen />
               <PaymentModal />
+              <UsbPrintQueueWorker />
 
             </TooltipProvider>
             </NotificationsProvider>

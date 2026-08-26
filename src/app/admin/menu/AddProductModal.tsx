@@ -38,6 +38,7 @@ export function AddProductModal({ onProductAdded, categories }: AddProductModalP
             await catalogApi.createProduct({
                 name: getVal("name"),
                 price: parseFloat(getVal("price")) || 0,
+                purchasePrice: getVal("purchase_price") ? parseFloat(getVal("purchase_price")) : undefined,
                 categoryId: Number(categoryId),
                 sku: getVal("sku") || undefined,
                 stockCount: productType === "storable" ? parseInt(getVal("stock"), 10) || 0 : undefined,
@@ -113,6 +114,16 @@ export function AddProductModal({ onProductAdded, categories }: AddProductModalP
                             <div className="relative">
                                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input name="price" type="number" className="pl-10 h-12 rounded-2xl bg-muted/30 border-none font-bold" required />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase ml-1 text-muted-foreground">Prix d'achat (FCFA)</Label>
+                            <div className="relative">
+                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input name="purchase_price" type="number" placeholder="Optionnel" className="pl-10 h-12 rounded-2xl bg-muted/30 border-none font-bold" />
                             </div>
                         </div>
                     </div>

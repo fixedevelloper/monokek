@@ -52,10 +52,15 @@ export default function KitchenTicketsContent() {
             return data as KitchenTicket[];
         },
         enabled: !!stationId,
+        // L'écran cuisine repose sur SSE pour les mises à jour en direct, mais le
+        // staleTime global (5 min, voir QueryProvider.tsx) faisait qu'en revenant
+        // sur cette station après l'avoir quittée, React Query réaffichait le
+        // cache sans requêter — un écran temps réel ne doit jamais servir de
+        // données potentiellement périmées de plusieurs minutes au (re)montage.
+        refetchOnMount: 'always',
     });
 
     // 2. Écoute temps réel via SSE — payload léger (pas les items), donc on
-    // refetch la liste complète plutôt que de tenter de reconstruire un ticket.
     useEffect(() => {
         if (!stationId) return;
 

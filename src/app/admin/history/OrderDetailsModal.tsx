@@ -237,6 +237,16 @@ export function OrderDetailsModal({ order, isOpen, onClose }: OrderDetailsModalP
                     {new Intl.NumberFormat('fr-CM').format(order.amounts?.subtotal || 0)} F
                   </span>
                   </div>
+                  {(order.amounts?.discount ?? 0) > 0 && (
+                    <div className="flex justify-between items-center text-emerald-600">
+                      <span className="text-[10px] font-black uppercase tracking-widest">
+                        Remise {order.amounts?.coupon_code ? `(${order.amounts.coupon_code})` : ''}
+                      </span>
+                      <span className="font-bold text-sm">
+                        - {new Intl.NumberFormat('fr-CM').format(order.amounts?.discount || 0)} F
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-end pt-2">
                     <span className="font-black uppercase italic text-xl tracking-tighter">Total Net</span>
                     <span className="text-4xl font-black text-primary tracking-tighter italic leading-none">

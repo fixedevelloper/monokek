@@ -1,7 +1,8 @@
 import api from '../axios';
-import { unwrapRaw } from './http';
+import { SpringPage, unwrapRaw } from './http';
 import {
     CashRegisterDto,
+    CashSessionAdminDto,
     CashSessionDto,
     CashStatusDto,
     CashSummaryDto,
@@ -11,7 +12,7 @@ import {
     StoreRegisterRequestDto,
     UpdateRegisterRequestDto,
 } from './types/cashier';
-import { CashRegister, CashSession, CashStatus, CashSummary, CloseReport, PaymentBreakdown } from '@/src/types/cashier';
+import { CashRegister, CashSession, CashSessionAdmin, CashStatus, CashSummary, CloseReport, PaymentBreakdown } from '@/src/types/cashier';
 
 function mapSessionDtoToSession(dto: CashSessionDto): CashSession {
     return {
@@ -25,6 +26,30 @@ function mapSessionDtoToSession(dto: CashSessionDto): CashSession {
         expected_amount: dto.expectedAmount,
         note: dto.note,
     };
+}
+
+function mapSessionAdminDto(dto: CashSessionAdminDto): CashSessionAdmin {
+    return {
+        id: dto.id,
+        register_id: dto.registerId,
+        register_name: dto.registerName,
+        branch_id: dto.branchId,
+        cashier_user_id: dto.cashierUserId,
+        cashier_name: dto.cashierName,
+        opening_amount: dto.openingAmount,
+        closing_amount: dto.closingAmount,
+        expected_amount: dto.expectedAmount,
+        opened_at: dto.openedAt,
+        closed_at: dto.closedAt,
+        open: dto.open,
+    };
+}
+
+/** Every shift (open or closed), most recent first — backs the admin "export a shift's orders" picker. */
+export async function listSessions(params: { branchId?: number; page?: number; size?: number }): Promise<SpringPage<CashSessionAdmin>> {
+    const response = await api.get('/api/cash/sessions', { params });
+    const raw = unwrapRaw<SpringPage<CashSessionAdminDto>>(response);
+    return { ...raw, content: raw.content.map(mapSessionAdminDto) };
 }
 
 function mapBreakdown(dto: PaymentBreakdownDto): PaymentBreakdown {

@@ -3,12 +3,22 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef } from "react";
 import { requestSseTicket } from "../lib/sse";
 import { resolveBranchId as resolveBranchIdShared } from "../lib/branch";
+import { useAuthStore } from "../store/use-auth-store";
 
 /** Payload shapes actually broadcast by the backend for each known SSE event name. */
 interface NotificationPayloads {
     'order.created': { orderId?: number; reference?: string };
     'order.updated': { orderId?: number; newStatus?: string };
     'ticket.created': { stationId?: number | string; tableName?: string };
+    'print-job-queued': {
+        jobId: number;
+        printerId: number;
+        printerName: string;
+        osPrinterName: string;
+        jobType: string;
+        content: string;
+        priority: number;
+    };
 }
 type PayloadFor<E extends string> = E extends keyof NotificationPayloads ? NotificationPayloads[E] : unknown;
 type Handler<T = unknown> = (payload: T) => void;
@@ -31,6 +41,11 @@ const RECONNECT_DELAY_MS = 3000;
  * native retry, which would just keep resending the already-consumed ticket.
  */
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
+    // Le provider enveloppe tout RootLayout, y compris /login (pas de RouteGuard
+    // là-bas) — sans cette garde, connect() tournait en boucle de reconnexion
+    // (toutes les 3-5s, indéfiniment) contre un backend qui répond 401 en
+    // continu tant que personne n'est connecté.
+    const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
     const sourceRef = useRef<EventSource | null>(null);
     const listenersRef = useRef<Map<string, Set<Handler<unknown>>>>(new Map());
     const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -89,6 +104,21 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     }, [attachToSource, scheduleReconnect, resolveBranchId]);
 
     useEffect(() => {
+        if (!isAuthenticated) {
+            // Pas connecté (écran de login, ou déconnexion en cours) : rien à ouvrir,
+            // et on coupe toute connexion/reconnexion déjà en cours (ex: logout).
+            // branchIdRef est aussi vidé ici : sans ça, un même processus qui repasse
+            // par un autre compte/succursale (poste partagé, ex. écran cuisine) sans
+            // relancer l'app réutiliserait le branchId de l'ancienne session au
+            // prochain connect(), et mal-scoperait silencieusement le flux SSE.
+            stoppedRef.current = true;
+            if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+            sourceRef.current?.close();
+            sourceRef.current = null;
+            branchIdRef.current = null;
+            return;
+        }
+
         stoppedRef.current = false;
         connect();
         return () => {
@@ -96,9 +126,10 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
             if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
             sourceRef.current?.close();
             sourceRef.current = null;
+            branchIdRef.current = null;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [isAuthenticated]);
 
     const on = useCallback(
         (eventName: string, handler: Handler<unknown>) => {

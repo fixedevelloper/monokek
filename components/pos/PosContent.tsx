@@ -310,18 +310,17 @@ export default function PosContent() {
     const [pendingRoundItemIds, setPendingRoundItemIds] = useState<Set<number>>(new Set());
     const queryClient = useQueryClient();
 
-    const refreshActiveOrder = async () => {
-        await queryClient.invalidateQueries({ queryKey: ['active-order', tableId] });
-        await queryClient.refetchQueries({ queryKey: ['active-order', tableId] });
-    };
-
     const handleUpdateRoundItemQty = async (roundId: number, itemId: number, newQty: number) => {
         if (pendingRoundItemIds.has(itemId)) return; // anti double-clic
 
         setPendingRoundItemIds(prev => new Set(prev).add(itemId));
         try {
-            await orderingApi.updateRoundItemQty(roundId, itemId, newQty);
-            await refreshActiveOrder();
+            // Même raison que dans handleRequestBilling : on écrit la commande
+            // renvoyée directement dans le cache plutôt que de refetch
+            // ['active-order', tableId], aveugle pour une table virtuelle.
+            const order = await orderingApi.updateRoundItemQty(roundId, itemId, newQty);
+            queryClient.setQueryData(['active-order', tableId], order);
+            syncOrderId(order.id);
             if (newQty === 0) {
                 toast.success("Article retiré du round");
             }
@@ -365,12 +364,27 @@ export default function PosContent() {
         }
     }, [tableId, initCartForTable]);
 
-    // 3b. Synchro de l'orderId avec le serveur, sans jamais toucher aux items locaux.
+    // 3b. Adopte l'orderId renvoyé par le serveur, sans jamais toucher aux items locaux.
     // Utile par ex. si l'order_id devient connu après le premier round envoyé
-    // par un autre poste, ou après un refresh de page.
+    // par un autre poste.
+    //
+    // On ne synchronise plus JAMAIS vers `null` ici : pour une table virtuelle
+    // (fallback "Emporter — {branche}", voir DefaultTableProvisioner), le
+    // backend fait exprès de ne jamais résoudre de commande active
+    // (OrderService#getActiveOrder — chaque visite doit repartir de zéro), donc
+    // orderData est toujours null pour ces tables. Un précédent code faisait
+    // `syncOrderId(orderData?.id ?? null)` sans condition : à CHAQUE montage/
+    // refetch de cette query (y compris un simple reload de page), ça écrasait
+    // l'orderId du round en cours de composition — le round suivant repartait
+    // donc sans orderId, et le backend créait une toute nouvelle Order au lieu
+    // de continuer le ticket ouvert. Les tickets cuisine/bar restaient
+    // corrects (indépendants de l'Order), mais l'écran Ventes affichait le
+    // round sous un ticket différent de celui qu'on regardait. Une commande
+    // déjà payée reste protégée par Order#assertNotPaid côté serveur, qui
+    // rejette explicitement tout ajout de round dessus.
     useEffect(() => {
-        if (!isLoadingOrder && tableId) {
-            syncOrderId(orderData?.id ?? null);
+        if (!isLoadingOrder && tableId && orderData?.id) {
+            syncOrderId(orderData.id);
         }
     }, [orderData?.id, tableId, isLoadingOrder, syncOrderId]);
 
@@ -428,18 +442,43 @@ export default function PosContent() {
         const loadingToast = toast.loading("Envoi en cuisine...");
 
         try {
-            await orderingApi.sendRound({
+            const { order, skippedKitchenItems } = await orderingApi.sendRound({
                 tableId: Number(tableId),
                 orderId: orderId ?? undefined,
                 items: sanitizedItems,
                 note: ""
             });
 
-            // On attend la re-synchronisation complète de l'état serveur avant de toucher au panier local
-            await refreshActiveOrder();
+            // On écrit directement la commande retournée dans le cache plutôt que de
+            // refetch ['active-order', tableId] (refreshActiveOrder) : pour une table
+            // virtuelle, ce refetch renvoie toujours "aucune commande active" (voir le
+            // commentaire au-dessus de l'effet de synchro de orderId ci-dessus) et
+            // écraserait le round qu'on vient juste d'envoyer.
+            queryClient.setQueryData(['active-order', tableId], order);
+            syncOrderId(order.id);
             queryClient.invalidateQueries({ queryKey: ['floors'] }); // Peut tourner en arrière-plan
+            // Sans ça, l'écran Vente (PosSalesPage) affichait une liste périmée en y naviguant juste
+            // après cet envoi : son useQuery(['pos-sales-orders']) hérite du staleTime global de 5min
+            // (QueryProvider.tsx) et ne refetch pas au remount tant qu'il n'est pas explicitement
+            // invalidé — le refetch déclenché par le SSE ne suffit pas puisque cette page n'est pas
+            // montée pendant qu'on est encore sur l'écran de prise de commande.
+            queryClient.invalidateQueries({ queryKey: ['pos-sales-orders'] });
+            // Même symptôme, même remède pour l'écran Comptoir (tickets de la station Bar) —
+            // clé partielle ['comptoir-tickets'] pour matcher ['comptoir-tickets', stationId]
+            // quel que soit stationId.
+            queryClient.invalidateQueries({ queryKey: ['comptoir-tickets'] });
 
-            toast.success("Round envoyé !", { id: loadingToast });
+            if (skippedKitchenItems?.length) {
+                // Ces articles ont été enregistrés sur la commande mais n'ont généré aucun ticket
+                // (catégorie sans station de cuisine assignée) : sans cet avertissement, ils
+                // restent "envoyés" côté serveur sans jamais apparaître en Cuisine/Comptoir.
+                toast.warning(
+                    `Non envoyé en cuisine : ${skippedKitchenItems.map(i => i.productName).join(', ')}`,
+                    { id: loadingToast, description: "Assignez une station de cuisine à leur catégorie dans Réglages.", duration: 8000 }
+                );
+            } else {
+                toast.success("Round envoyé !", { id: loadingToast });
+            }
 
             // Le round vient d'être confirmé et rechargé dans orderData.rounds (section serveur) :
             // on vide le panier local pour éviter que ces items s'affichent en double
@@ -475,7 +514,7 @@ export default function PosContent() {
         <div className="h-screen flex flex-col items-center justify-center bg-slate-50">
             <Store size={64} className="mb-4 text-slate-200" />
             <h2 className="text-2xl font-black uppercase italic tracking-tighter mb-6">Table non identifiée</h2>
-            <Button onClick={() => router.push('/pos/sales/tables')}>Choisir une table</Button>
+            <Button onClick={() => router.back()}>Choisir une table</Button>
         </div>
     );
 
@@ -485,7 +524,7 @@ export default function PosContent() {
             <div className="flex-1 md:flex-[2.5] flex flex-col border-r overflow-hidden bg-white dark:bg-slate-950">
                 <header className="p-4 md:p-6 border-b flex items-center justify-between gap-6">
                     <div className="flex items-center gap-4">
-                        <Button variant="ghost" onClick={() => router.push('/pos/sales/tables')} className="rounded-2xl h-12 w-12 bg-slate-50">
+                        <Button variant="ghost" onClick={() => router.back()} className="rounded-2xl h-12 w-12 bg-slate-50">
                             <ChevronLeft size={24} />
                         </Button>
                         <div>

@@ -13,6 +13,7 @@ export interface PrinterDto {
     active: boolean;
     paperWidth: number;
     useBeep: boolean;
+    osPrinterName: string | null;
 }
 
 export interface CreatePrinterRequestDto {
@@ -26,6 +27,7 @@ export interface CreatePrinterRequestDto {
     useBeep?: boolean;
     paperWidth?: number;
     location: string;
+    osPrinterName?: string;
 }
 
 export interface UpdatePrinterRequestDto {
@@ -40,4 +42,21 @@ export interface UpdatePrinterRequestDto {
     useBeep?: boolean;
     paperWidth?: number;
     location?: string;
+    osPrinterName?: string;
+}
+
+/** Mirrors com.monokek.printing.web.dto.PrintQueueDto. */
+export interface PrintQueueDto {
+    id: number;
+    printerId: number;
+    printerName: string;
+    printerIp: string | null;
+    printerPort: number | null;
+    printerOsPrinterName: string | null;
+    jobType: string;
+    content: string;
+    attempts: number;
+    status: string;
+    errorMessage: string | null;
+    priority: number;
 }

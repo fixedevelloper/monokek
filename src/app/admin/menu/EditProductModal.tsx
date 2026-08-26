@@ -45,12 +45,12 @@ export function EditProductModal({ product, categories, onProductUpdated }: Edit
             await catalogApi.updateProduct(product.id, {
                 name: getVal("name"),
                 price: parseFloat(getVal("price")) || 0,
+                purchasePrice: getVal("purchase_price") ? parseFloat(getVal("purchase_price")) : undefined,
                 categoryId: Number(getVal("category_id")) || product.category.id,
-                sku: getVal("sku"),
+                sku: getVal("sku") || undefined,
                 type: productType,
                 active: isActive,
                 incentiveAmount: parseFloat(getVal("incentive_amount")) || 0,
-                stockCount: productType === "storable" ? parseInt(getVal("stock"), 10) || 0 : undefined,
                 alertStock: productType === "storable" ? parseInt(getVal("alert_stock"), 10) || 0 : undefined,
                 image: imageUrl || undefined,
             });
@@ -122,6 +122,16 @@ export function EditProductModal({ product, categories, onProductUpdated }: Edit
                                 </div>
                             </div>
                             <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase ml-1 text-muted-foreground">Prix d'achat (FCFA)</Label>
+                                <div className="relative">
+                                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input name="purchase_price" type="number" defaultValue={product.purchase_price ?? ''} placeholder="Optionnel" className="pl-10 h-12 rounded-2xl bg-slate-50 border-none font-bold" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4">
+                            <div className="space-y-2">
                                 <Label className="text-[10px] font-black uppercase ml-1">Catégorie</Label>
                                 <Select name="category_id" defaultValue={String(product.category.id)}>
                                     <SelectTrigger className="h-12 rounded-2xl bg-slate-50 border-none font-bold">
@@ -163,8 +173,9 @@ export function EditProductModal({ product, categories, onProductUpdated }: Edit
                             {productType === "storable" && (
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <Label className="text-[10px] font-black uppercase ml-1">Stock actuel</Label>
-                                        <Input name="stock" type="number" defaultValue={product.stock_count} className="h-12 rounded-2xl bg-slate-50 border-none font-bold" required />
+                                        <Label className="text-[10px] font-black uppercase ml-1 text-muted-foreground">Stock actuel</Label>
+                                        <Input value={product.stock_count} disabled readOnly className="h-12 rounded-2xl bg-slate-100 border-none font-bold text-muted-foreground" />
+                                        <p className="text-[9px] text-muted-foreground ml-1">Utilisez "Ajuster le stock" pour le modifier</p>
                                     </div>
                                     <div className="space-y-2">
                                         <Label className="text-[10px] font-black uppercase ml-1">Seuil Alerte</Label>

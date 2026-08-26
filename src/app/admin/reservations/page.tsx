@@ -5,8 +5,7 @@ import {ArrowLeft, Clock, Inbox, Loader2, MoreHorizontal, Phone, Plus, Search} f
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {Badge} from "@/components/ui/badge";
-import {format} from "date-fns";
-import {fr} from "date-fns/locale";
+import {formatPickupDate} from "../../../lib/formatDate";
 import * as orderingApi from "../../../lib/api/ordering";
 import * as catalogApi from "../../../lib/api/catalog";
 import {ReservationSheet} from "./ReservationSheet";
@@ -207,9 +206,9 @@ export default function ReservationsPage() {
                                 </td>
                                 <td className="p-6 text-sm font-bold">
                                     <div className="flex flex-col">
-                                        <span className="uppercase">{format(new Date(res.pickup_date), "EEEE d MMMM", { locale: fr })}</span>
+                                        <span className="uppercase">{formatPickupDate(res.pickup_date, "EEEE d MMMM")}</span>
                                         <span className="text-primary font-black flex items-center gap-1">
-                                                <Clock size={14} strokeWidth={3} /> {format(new Date(res.pickup_date), "HH:mm")}
+                                                <Clock size={14} strokeWidth={3} /> {formatPickupDate(res.pickup_date, "HH:mm", false)}
                                             </span>
                                     </div>
                                 </td>

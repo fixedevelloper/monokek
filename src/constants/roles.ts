@@ -38,26 +38,39 @@ export function roleHomeRoute(role?: AppRole | string | null): string {
 }
 
 /**
- * Mapping des permissions pour l'UI (Optionnel mais recommandé)
- * Permet de lier des fonctionnalités à des permissions précises
+ * Mapping des permissions pour l'UI. Doit correspondre exactement au
+ * catalogue seedé en base (monokek-spring V2__seed_rbac.sql) — ce sont les
+ * noms bruts renvoyés par `/api/admin/staff/permissions/list` et portés par
+ * le claim `permissions` du JWT (voir `use-auth-store.ts#hasPermission`).
  */
 export const PERMISSIONS = {
+  // Staff
+  MANAGE_USERS: 'manage_users',
+  VIEW_STAFF: 'view_staff',
+  EDIT_PERMISSIONS: 'edit_permissions',
+
   // Commandes
-  CREATE_ORDER: 'create_order',
-  DELETE_ORDER: 'delete_order',
-  CANCEL_ORDER: 'cancel_order',
-  APPLY_DISCOUNT: 'apply_discount',
-  
-  // Caisse
-  OPEN_CASH_SESSION: 'open_cash_session',
-  CLOSE_CASH_SESSION: 'close_cash_session',
-  MANAGE_PAYMENTS: 'manage_payments',
-  
-  // Stock & Admin
-  MANAGE_INVENTORY: 'manage_inventory',
+  CREATE_ORDERS: 'create_orders',
+  EDIT_ORDERS: 'edit_orders',
+  CANCEL_ORDERS: 'cancel_orders',
+  VIEW_HISTORY: 'view_history',
+
+  // Produits
+  MANAGE_PRODUCTS: 'manage_products',
+  MANAGE_STOCK: 'manage_stock',
+  MANAGE_CATEGORIES: 'manage_categories',
+
+  // Rapports
   VIEW_REPORTS: 'view_reports',
-  MANAGE_STAFF: 'manage_staff',
-  EDIT_SETTINGS: 'edit_settings',
+  VIEW_ANALYTICS: 'view_analytics',
+
+  // Finance
+  CLOSE_CASHIER: 'close_cashier',
+  MANAGE_DISCOUNTS: 'manage_discounts',
+
+  // Réglages
+  MANAGE_SETTINGS: 'manage_settings',
+  MANAGE_BRANCH: 'manage_branch',
 } as const;
 
 /**

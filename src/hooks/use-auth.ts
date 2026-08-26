@@ -17,8 +17,7 @@ export const useAuth = () => {
    */
   const login = async (credentials: { email: string; password: string }) => {
     try {
-      // 1. Login (Spring's LoginResponse only carries {user: {id, name, role}, token})
-      const { user: summary, token } = await identityApi.login(
+      const { user: summary, token, refreshToken, expiresInSeconds } = await identityApi.login(
           credentials.email,
           credentials.password,
           isTauri ? "Tauri POS Terminal" : "Web Terminal",
@@ -34,9 +33,9 @@ export const useAuth = () => {
         id: summary.id,
         uuid: staff.uuid,
         name: summary.name,
-        role: (summary.role ?? 'serveur') as User['role'],
+        role: (summary.role as User['role']) ?? 'waiter',
         permissions: staff.permissions,
-      }, token);
+      }, token, refreshToken, expiresInSeconds);
 
       toast.success(`Bienvenue, ${summary.name}`);
 

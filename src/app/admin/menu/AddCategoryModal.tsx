@@ -12,27 +12,30 @@ import {toast} from "sonner";
 import * as catalogApi from "@/src/lib/api/catalog";
 import {Branch} from "@/src/types/company";
 import {getErrorMessage} from "@/src/lib/errors";
+import {KitchenStation, STATION_TYPE_LABELS} from "@/src/types/kitchenStation";
 
 interface AddCategoryModalProps {
     onCategoryAdded: () => void;
     branches: Branch[];
+    kitchenStations: KitchenStation[];
 }
 
 interface CategoryFormValues {
     name: string;
     branchId: string;
+    kitchenStationId: string;
 }
 
-export function AddCategoryModal({ onCategoryAdded, branches }: AddCategoryModalProps) {
+export function AddCategoryModal({ onCategoryAdded, branches, kitchenStations }: AddCategoryModalProps) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const { register, handleSubmit, watch, setValue, reset } = useForm<CategoryFormValues>({
-        defaultValues: { name: "", branchId: "" },
+        defaultValues: { name: "", branchId: "", kitchenStationId: "" },
     });
 
     useEffect(() => {
         if (open) {
-            reset({ name: "", branchId: branches[0] ? String(branches[0].id) : "" });
+            reset({ name: "", branchId: branches[0] ? String(branches[0].id) : "", kitchenStationId: "" });
         }
     }, [open, branches, reset]);
 
@@ -43,7 +46,15 @@ export function AddCategoryModal({ onCategoryAdded, branches }: AddCategoryModal
         }
         setLoading(true);
         try {
-            await catalogApi.createCategory({ branchId: Number(data.branchId), name: data.name });
+            await catalogApi.createCategory({
+                branchId: Number(data.branchId),
+                name: data.name,
+                // Sans station cuisine, les produits de cette catégorie ne génèreront jamais de
+                // ticket en cuisine/comptoir — voir OrderService#placeOrder côté backend, qui ne
+                // publie un KitchenTicketRequestedEvent que si product.category.kitchenStationId
+                // est renseigné.
+                kitchenStationId: data.kitchenStationId ? Number(data.kitchenStationId) : undefined,
+            });
 
             toast.success(`Catégorie "${data.name}" créée !`);
             setOpen(false);
@@ -95,6 +106,25 @@ export function AddCategoryModal({ onCategoryAdded, branches }: AddCategoryModal
                                 ))}
                             </SelectContent>
                         </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase ml-1 text-slate-500">Station cuisine</Label>
+                        <Select onValueChange={(v) => setValue("kitchenStationId", v)} value={watch("kitchenStationId")}>
+                            <SelectTrigger className="h-12 rounded-2xl bg-slate-100 border-none font-bold">
+                                <SelectValue placeholder="Aucune (pas de ticket cuisine)" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-2xl border-none shadow-xl">
+                                {kitchenStations.map((station) => (
+                                    <SelectItem key={station.id} value={String(station.id)} className="font-bold">
+                                        {station.name} ({STATION_TYPE_LABELS[station.type]})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-slate-400 ml-1">
+                            Sans station, les produits de cette catégorie n&apos;apparaîtront jamais en cuisine ou au comptoir.
+                        </p>
                     </div>
 
                     <DialogFooter className="pt-4">

@@ -7,7 +7,7 @@ import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
 import {Button} from "@/components/ui/button";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
-import {Edit3, Loader2, Mail, Phone, UserCircle2} from "lucide-react";
+import {Edit3, KeyRound, Loader2, Mail, Phone, UserCircle2} from "lucide-react";
 import {toast} from "sonner";
 import {StaffMember} from "@/src/types/management";
 import * as identityApi from "@/src/lib/api/identity";
@@ -34,6 +34,7 @@ interface EditStaffFormValues {
     email: string;
     role: string;
     branchId: string;
+    pin: string;
 }
 
 const NO_BRANCH = "__none__";
@@ -43,7 +44,7 @@ export function EditStaffModal({ member, open, onOpenChange, onStaffUpdated, bra
     const { register, handleSubmit, watch, setValue, reset } = useForm<EditStaffFormValues>({
         defaultValues: {
             name: member.name, phone: member.phone ?? "", email: member.email,
-            role: member.role, branchId: member.branch_id ? String(member.branch_id) : NO_BRANCH,
+            role: member.role, branchId: member.branch_id ? String(member.branch_id) : NO_BRANCH, pin: "",
         },
     });
 
@@ -51,7 +52,7 @@ export function EditStaffModal({ member, open, onOpenChange, onStaffUpdated, bra
         if (open) {
             reset({
                 name: member.name, phone: member.phone ?? "", email: member.email,
-                role: member.role, branchId: member.branch_id ? String(member.branch_id) : NO_BRANCH,
+                role: member.role, branchId: member.branch_id ? String(member.branch_id) : NO_BRANCH, pin: "",
             });
         }
     }, [open, member, reset]);
@@ -64,6 +65,10 @@ export function EditStaffModal({ member, open, onOpenChange, onStaffUpdated, bra
                 branchId: data.branchId === NO_BRANCH ? null : Number(data.branchId),
                 clearBranchId: data.branchId === NO_BRANCH,
             });
+
+            if (data.pin) {
+                await identityApi.setStaffPin(member.uuid, data.pin);
+            }
 
             toast.success(`Profil de ${data.name} mis à jour`);
             onStaffUpdated();
@@ -151,6 +156,19 @@ export function EditStaffModal({ member, open, onOpenChange, onStaffUpdated, bra
                                 ))}
                             </SelectContent>
                         </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase ml-1 text-slate-500">Code PIN (pointage)</Label>
+                        <div className="relative">
+                            <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input
+                                {...register("pin", { pattern: /^\d{4}$/ })}
+                                inputMode="numeric" maxLength={4} placeholder="Laisser vide pour ne pas changer"
+                                className="pl-10 h-12 rounded-2xl bg-slate-50 border-none font-bold tracking-widest"
+                            />
+                        </div>
+                        <p className="text-[9px] font-bold uppercase text-slate-400 ml-1">4 chiffres — utilisé pour le pointage sur un poste partagé</p>
                     </div>
 
                     <DialogFooter className="pt-4">

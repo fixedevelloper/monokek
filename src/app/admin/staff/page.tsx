@@ -17,6 +17,8 @@ import {ROLE_CONFIG, StaffMember} from "@/src/types/management";
 import {Branch} from "@/src/types/company";
 import {EditStaffModal} from "./EditStaffModal";
 import {PermissionsModal} from "./PermissionsModal";
+import {useAuth} from "@/src/hooks/use-auth";
+import {PERMISSIONS} from "@/src/constants/roles";
 
 interface Role {
   id: number;
@@ -24,6 +26,7 @@ interface Role {
 }
 
 export default function AdminStaffPage() {
+  const {can} = useAuth();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -104,7 +107,9 @@ const [isEditModalOpen, setIsEditModalOpen] = useState(false);
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <AddStaffModal onStaffAdded={fetchStaff} branches={branches} roles={roles} />
+            {can(PERMISSIONS.MANAGE_USERS) && (
+              <AddStaffModal onStaffAdded={fetchStaff} branches={branches} roles={roles} />
+            )}
           </div>
         </div>
       </header>
@@ -133,28 +138,30 @@ const [isEditModalOpen, setIsEditModalOpen] = useState(false);
                           <UserCircle2 size={32} />
                         </div>
                         
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 hover:bg-slate-100">
-                              <MoreVertical size={16} />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2">
-                            <DropdownMenuItem
-                            onClick={() => {
-        setSelectedMember(member);
-        setIsEditModalOpen(true);
-    }}
-                            className="gap-2 font-black text-[10px] uppercase cursor-pointer rounded-xl py-3">
-                              <Edit2 size={14} /> Modifier Profil
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                            onClick={() => handleRevokeAccess(member)}
-                            className="gap-2 font-black text-[10px] uppercase cursor-pointer text-red-600 focus:text-red-600 rounded-xl py-3">
-                              <Trash2 size={14} /> Révoquer l'accès
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        {can(PERMISSIONS.MANAGE_USERS) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 hover:bg-slate-100">
+                                <MoreVertical size={16} />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2">
+                              <DropdownMenuItem
+                              onClick={() => {
+          setSelectedMember(member);
+          setIsEditModalOpen(true);
+      }}
+                              className="gap-2 font-black text-[10px] uppercase cursor-pointer rounded-xl py-3">
+                                <Edit2 size={14} /> Modifier Profil
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                              onClick={() => handleRevokeAccess(member)}
+                              className="gap-2 font-black text-[10px] uppercase cursor-pointer text-red-600 focus:text-red-600 rounded-xl py-3">
+                                <Trash2 size={14} /> Révoquer l'accès
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
 
                       <div className="space-y-1 mb-4">
@@ -195,14 +202,16 @@ const [isEditModalOpen, setIsEditModalOpen] = useState(false);
                         </div>
                       </div>
 
-                      <Button
-                      onClick={() => {
-    setPermissionMember(member);
-    setIsPermissionModalOpen(true);
-  }}
-                      variant="secondary" className="w-full mt-6 h-12 rounded-2xl font-black uppercase text-[10px] tracking-[0.15em] gap-2 bg-slate-50 hover:bg-slate-900 hover:text-white border-none transition-all duration-300">
-                        <ShieldCheck size={14} /> Permissions
-                      </Button>
+                      {can(PERMISSIONS.EDIT_PERMISSIONS) && (
+                        <Button
+                        onClick={() => {
+      setPermissionMember(member);
+      setIsPermissionModalOpen(true);
+    }}
+                        variant="secondary" className="w-full mt-6 h-12 rounded-2xl font-black uppercase text-[10px] tracking-[0.15em] gap-2 bg-slate-50 hover:bg-slate-900 hover:text-white border-none transition-all duration-300">
+                          <ShieldCheck size={14} /> Permissions
+                        </Button>
+                      )}
                     </Card>
                   </div>
                 );

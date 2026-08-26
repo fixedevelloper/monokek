@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Product, Reservation } from '@/src/types/menus';
+import { toDatetimeLocalValue } from '@/src/lib/formatDate';
 
 interface ReservationFormData {
     customer_name: string;
@@ -69,7 +70,7 @@ export const useReservationStore = create<ReservationState>((set, get) => ({
                 formData: {
                     customer_name: res.customer?.name || "",
                     customer_phone: res.customer?.phone || "",
-                    pickup_date: res.pickup_date?.substring(0, 16) || "",
+                    pickup_date: toDatetimeLocalValue(res.pickup_date),
                     guests_count: res.guests_count || 1,
                     manager_notes: res.manager_notes || ""
                 },

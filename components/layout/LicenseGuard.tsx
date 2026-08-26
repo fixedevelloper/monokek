@@ -1,8 +1,8 @@
 "use client";
 
 import { useLicense } from "@/src/hooks/useLicense";
-import React, { useState } from "react";
-import {Loader2, ShieldAlert, Lock, Key, AlertTriangle, Settings} from "lucide-react";
+import React, { useEffect, useState } from "react";
+import {Loader2, ShieldAlert, Lock, Key, AlertTriangle, Settings, WifiOff} from "lucide-react";
 import { toast } from "sonner";
 import {Button} from "../ui/button";
 import {Input} from "../ui/input";
@@ -12,12 +12,28 @@ import {IPConfigModal} from "./IPConfigModal";
 import {AxiosError} from "axios";
 import {getErrorMessage} from "@/src/lib/errors";
 
+const NETWORK_ERROR_RETRY_MS = 8000;
+
 export function LicenseGuard({ children }: { children: React.ReactNode }) {
     const { data: status, isLoading, refetch, error } = useLicense();
     const [activationKey, setActivationKey] = useState("");
     const [isActivating, setIsActivating] = useState(false);
     const isFraud = error instanceof AxiosError && error.response?.status === 403;
+    // Pas de réponse du tout (serveur injoignable, DNS, timeout) — distinct d'une
+    // vraie réponse HTTP disant que la licence est invalide/expirée/frauduleuse.
+    const isNetworkError = error instanceof AxiosError && !error.response;
     const [isConfigOpen, setIsConfigOpen] = useState(false);
+
+    // Auto-retry tant qu'on est bloqué sur une erreur réseau — sans ça, seul le
+    // refetchInterval de 30 min (ou un clic manuel) relancerait la vérification,
+    // ce qui laisserait le personnel déjà licencié bloqué pour rien après une
+    // simple coupure Wi-Fi de quelques secondes.
+    useEffect(() => {
+        if (!isNetworkError) return;
+        const timer = setTimeout(() => refetch(), NETWORK_ERROR_RETRY_MS);
+        return () => clearTimeout(timer);
+    }, [isNetworkError, refetch]);
+
     const handleActivate = async () => {
         if (!activationKey) return;
         setIsActivating(true);
@@ -50,7 +66,36 @@ export function LicenseGuard({ children }: { children: React.ReactNode }) {
         );
     }
 
-    // 2. Blocage (Expiration OU Fraude OU Non-activé)
+    // 1.5 Serveur injoignable — PAS un problème de licence, ne pas demander de
+    // ressaisir une clé. Réessai automatique (voir l'effet ci-dessus) + bouton manuel.
+    if (isNetworkError) {
+        return (
+            <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-950 p-6 gap-4">
+                <div className="bg-amber-500/10 w-16 h-16 rounded-full flex items-center justify-center">
+                    <WifiOff className="text-amber-400 h-8 w-8" />
+                </div>
+                <div className="text-center space-y-1.5">
+                    <h2 className="text-xl font-black uppercase italic text-white">Serveur injoignable</h2>
+                    <p className="text-xs text-slate-400 max-w-xs">
+                        Nouvelle tentative automatique dans quelques secondes. Vérifiez la connexion réseau du poste.
+                    </p>
+                </div>
+                <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
+                <div className="flex items-center gap-2 mt-2">
+                    <Button size="sm" variant="outline" onClick={() => refetch()} className="rounded-xl">
+                        Réessayer maintenant
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setIsConfigOpen(true)} className="rounded-xl">
+                        <Settings className="h-3.5 w-3.5 mr-1.5" /> Configuration réseau
+                    </Button>
+                </div>
+                <IPConfigModal isOpen={isConfigOpen} onClose={() => setIsConfigOpen(false)} />
+            </div>
+        );
+    }
+
+    // 2. Blocage (Expiration OU Fraude OU Non-activé) — on a une vraie réponse du
+    // serveur ici, jamais à cause d'une simple coupure réseau (voir isNetworkError ci-dessus).
     if (!status?.active || status?.expired || isFraud) {
         return (
             <div className="h-screen w-full flex items-center justify-center bg-slate-950 p-6">

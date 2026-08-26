@@ -12,6 +12,7 @@ import {
     FileDown,
     Loader2,
     Package,
+    PiggyBank,
     TrendingUp,
     Users,
     Wallet
@@ -29,27 +30,29 @@ import {Avatar} from "@/components/ui/avatar";
 import {fr} from 'date-fns/locale';
 import {Popover, PopoverClose, PopoverContent, PopoverTrigger} from '@/components/ui/popover';
 import {Calendar} from '@/components/ui/calendar';
+import {Tabs, TabsList, TabsTrigger} from '@/components/ui/tabs';
 import type {DateRange} from 'react-day-picker';
 import {useExport} from "../../../hooks/useExport";
+import * as companyApi from "@/src/lib/api/company";
+import {Branch} from "@/src/types/company";
 
-interface AnalyticsKpis {
-  total_sales: number;
-  orders_count: number;
-  average_cart: number;
-  food_cost: number;
-}
 interface RevenuePoint { date: string; total: number; }
 interface HourlyFlowPoint { hour: number; count: number; }
-interface WaiterPerformance { name: string; orders: number; sales: number; }
-interface PaymentTotal { method_name: string; total: number; }
-interface TopProduct { name: string; qty: number; }
+interface WaiterPerformance { waiter: string; orders: number; sales: number; }
+interface PaymentTotal { method: string; count: number; total: number; }
+interface TopProduct { product: string; qty: number; revenue: number; }
 interface AnalyticsResponse {
-  kpis: AnalyticsKpis;
-  chart_data: RevenuePoint[];
-  hourly_flow: HourlyFlowPoint[];
-  waiters: WaiterPerformance[];
-  payments: PaymentTotal[];
-  top_products: TopProduct[];
+  totalSales: number;
+  ordersCount: number;
+  averageCart: number;
+  foodCostPercent: number;
+  grossMargin: number;
+  grossMarginPercent: number;
+  salesOverTime: RevenuePoint[];
+  hourlyFlow: HourlyFlowPoint[];
+  waiterPerformance: WaiterPerformance[];
+  paymentsByMethod: PaymentTotal[];
+  topProducts: TopProduct[];
 }
 // Contrairement à DateRange (react-day-picker), toujours complète : appliedRange
 // alimente directement les appels format()/API, qui exigent des Date non-optionnelles.
@@ -82,17 +85,33 @@ export default function ReportsPage() {
   // 2. État appliqué (la requête API)
   const [appliedRange, setAppliedRange] = useState<FullDateRange>(dateRange);
 
+  // Onglet de branche actif — chaque branche a ses propres commandes/ventes, donc son
+  // propre jeu d'analytics indépendant plutôt qu'un total mélangé entre branches.
+  const { data: branches = [] } = useQuery({
+    queryKey: ['branches-for-reports'],
+    queryFn: () => companyApi.listBranches(),
+  });
+  const [activeBranchId, setActiveBranchId] = useState<number | null>(null);
+  React.useEffect(() => {
+    if (branches.length === 0) return;
+    if (!branches.some((b: Branch) => b.id === activeBranchId)) {
+      setActiveBranchId(branches[0].id);
+    }
+  }, [branches, activeBranchId]);
+  const activeBranch = branches.find((b: Branch) => b.id === activeBranchId);
+
   // 3. React Query
   const { data: analytics, isLoading, isFetching } = useQuery({
-    queryKey: ["analytics", appliedRange.from, appliedRange.to],
+    queryKey: ["analytics", appliedRange.from, appliedRange.to, activeBranchId],
     queryFn: async () => {
       const start = format(appliedRange.from, 'yyyy-MM-dd');
       const end = appliedRange.to ? format(appliedRange.to, 'yyyy-MM-dd') : start;
       const res = await api.get(`/api/admin/analytics`, {
-        params: { start_date: start, end_date: end }
+        params: { startDate: start, endDate: end, branchId: activeBranchId ?? undefined }
       });
       return res.data as AnalyticsResponse; // On récupère l'objet structuré de l'API
-    }
+    },
+    enabled: activeBranchId !== null,
   });
 
   const handleApply = () => {
@@ -104,10 +123,10 @@ export default function ReportsPage() {
 
     const columns = ["Indicateur", "Valeur"];
     const exportData = [
-      ["Chiffre d'Affaires", `${analytics.kpis.total_sales?.toLocaleString()} FCFA`],
-      ["Nombre de Commandes", analytics.kpis.orders_count?.toString()],
-      ["Panier Moyen", `${analytics.kpis.average_cart?.toLocaleString()} FCFA`],
-      ["Produit Top Vente", analytics.top_products[0]?.name || "N/A"],
+      ["Chiffre d'Affaires", `${analytics.totalSales?.toLocaleString()} FCFA`],
+      ["Nombre de Commandes", analytics.ordersCount?.toString()],
+      ["Panier Moyen", `${analytics.averageCart?.toLocaleString()} FCFA`],
+      ["Produit Top Vente", analytics.topProducts[0]?.product || "N/A"],
     ];
 
     exportToPDF({
@@ -143,7 +162,9 @@ export default function ReportsPage() {
               <h1 className="text-3xl font-black tracking-tighter uppercase italic leading-none">
                 Analytique <span className="text-indigo-600">Business</span>
               </h1>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] mt-1">Succursale : Douala Sud</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] mt-1">
+                Succursale : {activeBranch?.name ?? '—'}
+              </p>
             </div>
           </div>
 
@@ -209,27 +230,45 @@ export default function ReportsPage() {
           </div>
         </div>
 
+        {/* --- ONGLETS DE BRANCHE --- */}
+        {branches.length > 1 && activeBranchId !== null && (
+            <Tabs value={String(activeBranchId)} onValueChange={(v) => setActiveBranchId(Number(v))}>
+              <TabsList>
+                {branches.map((branch: Branch) => (
+                    <TabsTrigger key={branch.id} value={String(branch.id)} className="text-xs font-bold uppercase px-4">
+                      {branch.name}
+                    </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+        )}
+
         {/* --- SECTION 1 : KPIs --- */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <ReportStatCard
               title="Chiffre d'Affaires"
-              value={formatCurrency(analytics?.kpis.total_sales ?? 0)}
+              value={formatCurrency(analytics?.totalSales ?? 0)}
               trend="+14.2%" up={true} icon={<TrendingUp className="text-emerald-500"/>}
           />
           <ReportStatCard
               title="Commandes"
-              value={analytics?.kpis.orders_count.toString()}
+              value={analytics?.ordersCount.toString()}
               trend="+5.1%" up={true} icon={<Users className="text-indigo-600"/>}
           />
           <ReportStatCard
               title="Panier Moyen"
-              value={formatCurrency(analytics?.kpis.average_cart ?? 0)}
+              value={formatCurrency(analytics?.averageCart ?? 0)}
               trend="-2.4%" up={false} icon={<Wallet className="text-orange-500"/>}
           />
           <ReportStatCard
               title="Coût Matières"
-              value={`${analytics?.kpis.food_cost}%`}
+              value={`${analytics?.foodCostPercent}%`}
               trend="Stable" up={true} icon={<Package className="text-blue-500"/>}
+          />
+          <ReportStatCard
+              title="Marge Brute"
+              value={formatCurrency(analytics?.grossMargin ?? 0)}
+              trend={`${analytics?.grossMarginPercent ?? 0}%`} up={true} icon={<PiggyBank className="text-emerald-600"/>}
           />
         </div>
 
@@ -238,7 +277,7 @@ export default function ReportsPage() {
           <Card className="lg:col-span-2 border-none shadow-sm p-6 bg-white rounded-3xl">
             <h3 className="text-xs font-black uppercase mb-6 text-slate-400 tracking-widest">Évolution des recettes</h3>
             <div className="h-[300px] w-full">
-              <RevenueAreaChart data={analytics?.chart_data} />
+              <RevenueAreaChart data={analytics?.salesOverTime} />
             </div>
           </Card>
 
@@ -247,7 +286,7 @@ export default function ReportsPage() {
               <Clock size={14} /> Heures de pointe
             </h3>
             <div className="h-[300px] w-full">
-              <HourlyFlowBarChart data={analytics?.hourly_flow} />
+              <HourlyFlowBarChart data={analytics?.hourlyFlow} />
             </div>
           </Card>
         </div>
@@ -259,21 +298,21 @@ export default function ReportsPage() {
               <CardTitle className="text-sm font-black uppercase italic">Performance Serveurs</CardTitle>
             </CardHeader>
             <div className="space-y-6">
-              {analytics?.waiters.map((waiter: WaiterPerformance) => (
-                  <div key={waiter.name} className="space-y-2">
+              {analytics?.waiterPerformance.map((waiter: WaiterPerformance) => (
+                  <div key={waiter.waiter} className="space-y-2">
                     <div className="flex justify-between items-end">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9 bg-indigo-50 text-indigo-600 font-black flex items-center justify-center text-xs">
-                          {waiter.name.charAt(0)}
+                          {waiter.waiter.charAt(0)}
                         </Avatar>
                         <div>
-                          <p className="text-xs font-black uppercase">{waiter.name}</p>
+                          <p className="text-xs font-black uppercase">{waiter.waiter}</p>
                           <p className="text-[10px] text-muted-foreground font-bold">{waiter.orders} commandes</p>
                         </div>
                       </div>
                       <p className="text-sm font-black text-indigo-600">{formatCurrency(waiter.sales)}</p>
                     </div>
-                    <Progress value={(waiter.sales / analytics.kpis.total_sales) * 100} className="h-1.5" />
+                    <Progress value={(waiter.sales / analytics.totalSales) * 100} className="h-1.5" />
                   </div>
               ))}
             </div>
@@ -284,9 +323,9 @@ export default function ReportsPage() {
               <CardTitle className="text-sm font-black uppercase italic">Modes d'encaissement</CardTitle>
             </CardHeader>
             <div className="grid grid-cols-2 gap-4 h-full content-center">
-              {analytics?.payments.map((p: PaymentTotal) => (
-                  <div key={p.method_name} className="p-6 rounded-3xl bg-indigo-50/30 border border-dashed border-indigo-100 flex flex-col items-center justify-center">
-                    <span className="text-[9px] font-black uppercase text-muted-foreground mb-1">{p.method_name}</span>
+              {analytics?.paymentsByMethod.map((p: PaymentTotal) => (
+                  <div key={p.method} className="p-6 rounded-3xl bg-indigo-50/30 border border-dashed border-indigo-100 flex flex-col items-center justify-center">
+                    <span className="text-[9px] font-black uppercase text-muted-foreground mb-1">{p.method}</span>
                     <span className="text-xl font-black text-slate-800">{formatCurrency(p.total)}</span>
                   </div>
               ))}
@@ -302,10 +341,10 @@ export default function ReportsPage() {
             </CardTitle>
           </CardHeader>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {analytics?.top_products.map((product: TopProduct, index: number) => (
-                <div key={product.name} className="relative p-4 rounded-2xl bg-slate-50 border border-transparent hover:border-indigo-100 transition-all">
+            {analytics?.topProducts.map((product: TopProduct, index: number) => (
+                <div key={product.product} className="relative p-4 rounded-2xl bg-slate-50 border border-transparent hover:border-indigo-100 transition-all">
                   <span className="absolute top-2 right-3 text-2xl font-black text-slate-200">#{index + 1}</span>
-                  <p className="text-[11px] font-black uppercase truncate pr-6">{product.name}</p>
+                  <p className="text-[11px] font-black uppercase truncate pr-6">{product.product}</p>
                   <div className="mt-4">
                     <p className="text-2xl font-black leading-none">{product.qty}</p>
                     <p className="text-[9px] font-bold text-muted-foreground uppercase">Unités</p>

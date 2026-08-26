@@ -20,6 +20,23 @@ export interface CashSessionDto {
     note: string | null;
 }
 
+/** Richer than CashSessionDto (branch/cashier identity, open/closed state) — backs the
+ * admin "browse shifts to export" screen. */
+export interface CashSessionAdminDto {
+    id: number;
+    registerId: number;
+    registerName: string;
+    branchId: number;
+    cashierUserId: number;
+    cashierName: string | null;
+    openingAmount: number;
+    closingAmount: number | null;
+    expectedAmount: number | null;
+    openedAt: string;
+    closedAt: string | null;
+    open: boolean;
+}
+
 export interface CashStatusDto {
     isOpen: boolean;
     session: CashSessionDto | null;

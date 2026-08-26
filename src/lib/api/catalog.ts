@@ -1,6 +1,7 @@
 import api from '../axios';
-import { unwrapRaw } from './http';
+import { SpringPage, unwrapRaw } from './http';
 import {
+    AdjustProductStockRequestDto,
     BulkImportRequestDto,
     CategoryDto,
     CreateCategoryRequestDto,
@@ -9,6 +10,7 @@ import {
     CreateProductRequestDto,
     ModifierDto,
     ProductDto,
+    ProductStockMovementDto,
     UpdateCategoryRequestDto,
     UpdateModifierRequestDto,
     UpdateProductRequestDto,
@@ -22,9 +24,10 @@ export function mapProductDtoToProduct(dto: ProductDto): Product {
         sku: dto.sku,
         description: dto.description,
         price: dto.price,
+        purchase_price: dto.purchasePrice,
         incentive_amount: dto.incentiveAmount,
         formatted_price: dto.formattedPrice,
-        category: { id: dto.categoryId, name: dto.categoryName },
+        category: { id: dto.categoryId, name: dto.categoryName, branch_id: dto.branchId },
         modifiers: dto.modifiers.map(mapModifierDtoToModifier),
         is_active: dto.active,
         track_stock: dto.trackStock,
@@ -48,6 +51,7 @@ export function mapCategoryDtoToCategory(dto: CategoryDto): Category {
         id: dto.id,
         name: dto.name,
         branch_id: dto.branchId,
+        kitchen_station_id: dto.kitchenStationId,
         slug: dto.slug,
         description: dto.description ?? undefined,
         icon: dto.icon ?? undefined,
@@ -65,6 +69,20 @@ export async function listProductsAdmin(categoryId?: number, search?: string): P
     return unwrapRaw<ProductDto[]>(response).map(mapProductDtoToProduct);
 }
 
+/** Paginated — backs the admin menu's infinite-scroll grid (one branch section at a time). */
+export async function listProductsAdminPage(params: {
+    branchId: number;
+    categoryId?: number;
+    search?: string;
+    page: number;
+    size?: number;
+}): Promise<SpringPage<Product>> {
+    const { branchId, categoryId, search, page, size = 20 } = params;
+    const response = await api.get('/api/admin/products/page', { params: { branchId, categoryId, search, page, size } });
+    const raw = unwrapRaw<SpringPage<ProductDto>>(response);
+    return { ...raw, content: raw.content.map(mapProductDtoToProduct) };
+}
+
 export async function createProduct(payload: CreateProductRequestDto): Promise<Product> {
     const response = await api.post('/api/admin/products', payload);
     return mapProductDtoToProduct(unwrapRaw(response));
@@ -77,6 +95,17 @@ export async function updateProduct(id: number, payload: UpdateProductRequestDto
 
 export async function deleteProduct(id: number): Promise<void> {
     await api.delete(`/api/admin/products/${id}`);
+}
+
+/** The only way left to move a product's stock — admin-only, always traced (see ProductStockMovementDto). */
+export async function adjustProductStock(productId: number, payload: AdjustProductStockRequestDto): Promise<Product> {
+    const response = await api.post(`/api/admin/products/${productId}/stock/adjust`, payload);
+    return mapProductDtoToProduct(unwrapRaw(response));
+}
+
+export async function listProductStockMovements(productId: number): Promise<ProductStockMovementDto[]> {
+    const response = await api.get(`/api/admin/products/${productId}/stock/movements`);
+    return unwrapRaw<ProductStockMovementDto[]>(response);
 }
 
 export async function bulkImportProducts(payload: BulkImportRequestDto): Promise<string> {

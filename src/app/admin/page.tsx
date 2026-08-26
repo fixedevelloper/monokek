@@ -6,14 +6,18 @@ import {
   BarChart3, Briefcase,
   Building2,
   CalendarCheck,
+  CalendarClock,
+  Heart,
   History,
   LayoutDashboard,
+  ListChecks,
   LogOut,
   Package,
   Settings,
   ShieldCheck,
   Store,
   TrendingUp,
+  Truck,
   UserCog,
   Users,
   Utensils
@@ -25,6 +29,8 @@ import * as identityApi from '@/src/lib/api/identity';
 import {toast} from 'sonner';
 import {SecurityModal} from '@/components/layout/SecurityModal';
 import {AxiosError} from 'axios';
+import {useAuth} from '@/src/hooks/use-auth';
+import {PERMISSIONS} from '@/src/constants/roles';
 
 // Types pour nos fonctionnalités
 interface AdminAction {
@@ -33,6 +39,8 @@ interface AdminAction {
   icon: React.ElementType;
   href: string;
   color: string;
+  /** Carte visible seulement si `can(permission)` — absent = visible à tout ADMIN/MANAGER, comme avant. */
+  permission?: string;
 }
 
 const ADMIN_ACTIONS: AdminAction[] = [
@@ -42,6 +50,7 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: Utensils,
     href: "/admin/menu",
     color: "bg-orange-500",
+    permission: PERMISSIONS.MANAGE_PRODUCTS,
   },
   {
     title: "Plan de Salle",
@@ -56,6 +65,7 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: BarChart3,
     href: "/admin/reports",
     color: "bg-emerald-600",
+    permission: PERMISSIONS.VIEW_REPORTS,
   },
   {
     title: "Personnel",
@@ -63,6 +73,14 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: Users,
     href: "/admin/staff",
     color: "bg-purple-600",
+    permission: PERMISSIONS.VIEW_STAFF,
+  },
+  {
+    title: "Planning",
+    description: "Shifts prévus et pointage des heures",
+    icon: CalendarClock,
+    href: "/admin/planning",
+    color: "bg-cyan-600",
   },
   {
     title: "Réservations",
@@ -72,11 +90,19 @@ const ADMIN_ACTIONS: AdminAction[] = [
     color: "bg-indigo-600", // Un bleu-indigo puissant pour la confiance et la gestion
   },
   {
+    title: "CRM & Fidélité",
+    description: "Clients, points de fidélité et coupons",
+    icon: Heart,
+    href: "/admin/crm",
+    color: "bg-rose-600",
+  },
+  {
     title: "Performance",
     description: "Analytique et commissions sur ventes",
     icon: TrendingUp,
     href: "/admin/commissions",
     color: "bg-emerald-500", // Vert pour la croissance et le profit
+    permission: PERMISSIONS.VIEW_ANALYTICS,
   },
   {
     title: "Historique",
@@ -84,6 +110,7 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: History,
     href: "/admin/history",
     color: "bg-slate-700",
+    permission: PERMISSIONS.VIEW_HISTORY,
   },
   {
     title: "Inventaire",
@@ -91,6 +118,7 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: Package, // Utilise 'Package' ou 'Boxes' pour le stock physique
     href: "/admin/stock",
     color: "bg-red-700",
+    permission: PERMISSIONS.MANAGE_STOCK,
   },
   {
     title: "Mouvements",
@@ -98,6 +126,15 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: History, // Garde 'History' pour l'historique des flux
     href: "/admin/stock/history",
     color: "bg-amber-600",
+    permission: PERMISSIONS.MANAGE_STOCK,
+  },
+  {
+    title: "Fournisseurs",
+    description: "Fiches fournisseurs et contacts",
+    icon: Truck,
+    href: "/admin/suppliers",
+    color: "bg-teal-600",
+    permission: PERMISSIONS.MANAGE_STOCK,
   },
   {
     title: "Comptabilité",
@@ -105,6 +142,7 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: Briefcase, // ou Calculator, Briefcase
     href: "/admin/accounting",
     color: "bg-blue-600", // Optionnel : change le rose pour un ton plus "finance"
+    permission: PERMISSIONS.VIEW_REPORTS,
   },
   {
     title: "Paramètres",
@@ -112,6 +150,7 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: Settings,
     href: "/admin/settings",
     color: "bg-pink-600",
+    permission: PERMISSIONS.MANAGE_SETTINGS,
   },
   {
     title: "Organisation",
@@ -119,12 +158,22 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: Building2,
     href: "/admin/company",
     color: "bg-indigo-700",
+    permission: PERMISSIONS.MANAGE_BRANCH,
+  },
+  {
+    title: "Journal d'activité",
+    description: "Traçabilité : suppressions de rounds, annulations, accès",
+    icon: ListChecks,
+    href: "/admin/activity",
+    color: "bg-stone-700",
   },
 ];
 
 export default function AdminPage() {
   const router = useRouter();
   const logout = useAuthStore((state) => state.logout); // On suppose que tu as une action logout
+  const {can} = useAuth();
+  const visibleActions = ADMIN_ACTIONS.filter((action) => !action.permission || can(action.permission));
   const [isSecurityOpen, setIsSecurityOpen] = useState(false);
   const updatePin = async (newPin: string) => {
     // Optionnel : Validation locale rapide avant l'appel
@@ -247,7 +296,7 @@ export default function AdminPage() {
 
       {/* Grille d'actions */}
       <main className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {ADMIN_ACTIONS.map((action, i) => (
+        {visibleActions.map((action, i) => (
           <Link key={i} href={action.href}>
             <div
               className="group relative overflow-hidden bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 cursor-pointer h-full transition-all duration-200 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1 hover:scale-[1.02] active:scale-[0.98]"

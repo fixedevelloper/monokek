@@ -9,7 +9,17 @@ import {
     StaffUpdateRequestDto,
     UserSummaryDto,
 } from './types/identity';
-import { Permission, StaffMember } from '@/src/types/management';
+import { Permission, ROLE_CONFIG, StaffMember } from '@/src/types/management';
+
+/**
+ * L'annuaire /admin/staff est partagé avec le PMS hôtelier (même monokek-identity,
+ * voir permissionService.ts côté pms-frontend : "même annuaire pour le POS et le
+ * PMS"). Les rôles hôtel (receptionist, housekeeper — V12__add_hotel_roles.sql)
+ * n'existent même pas dans StaffRole/ROLE_CONFIG ici : sans ce filtre ils
+ * s'affichaient déjà cassés (ROLE_CONFIG[role] undefined) en plus d'être hors
+ * sujet dans une app restaurant.
+ */
+const RESTAURANT_ROLES = new Set<string>(Object.keys(ROLE_CONFIG));
 
 export function mapStaffDtoToMember(dto: StaffDto): StaffMember {
     return {
@@ -19,7 +29,7 @@ export function mapStaffDtoToMember(dto: StaffDto): StaffMember {
         email: dto.email,
         phone: dto.phone,
         is_active: dto.isActive,
-        role: (dto.role ?? 'serveur') as StaffMember['role'],
+        role: (dto.role as StaffMember['role']) ?? 'waiter',
         permissions: dto.permissions,
         created_at: dto.createdAt ?? '',
         updated_at: dto.updatedAt ?? '',
@@ -52,6 +62,17 @@ export async function updatePin(pin: string): Promise<void> {
     await api.post('/api/auth/update-pin', { pin });
 }
 
+/** Identifies which colleague in `branchId` owns `pin` — for self-service clock-in/out on a shared POS terminal. */
+export async function lookupPin(branchId: string | number, pin: string): Promise<UserSummaryDto> {
+    const response = await api.post('/api/auth/lookup-pin', { branchId, pin });
+    return unwrap(response);
+}
+
+/** Admin-side PIN onboarding — sets another employee's PIN (they've never logged in to self-set one via updatePin). */
+export async function setStaffPin(uuid: string, pin: string): Promise<void> {
+    await api.put(`/api/admin/staff/${uuid}/pin`, { pin });
+}
+
 export async function updatePassword(oldPassword: string, newPassword: string): Promise<void> {
     // Spring requires newPasswordConfirmation; the current UI has no confirm field, so auto-confirm
     // (same pattern the staff-creation form already uses for its own password_confirmation).
@@ -68,7 +89,9 @@ export async function logout(): Promise<void> {
 
 export async function listStaff(): Promise<StaffMember[]> {
     const response = await api.get('/api/admin/staff');
-    return unwrap<StaffDto[]>(response).map(mapStaffDtoToMember);
+    return unwrap<StaffDto[]>(response)
+        .map(mapStaffDtoToMember)
+        .filter((member) => RESTAURANT_ROLES.has(member.role));
 }
 
 export async function createStaff(payload: StaffCreateRequestDto): Promise<StaffMember> {
@@ -87,7 +110,10 @@ export async function deleteStaff(uuid: string): Promise<void> {
 
 export async function listRoles(): Promise<RoleOptionDto[]> {
     const response = await api.get('/api/admin/staff/roles');
-    return unwrap(response);
+    // Même filtre restaurant que listStaff — sinon on peut créer un compte
+    // "receptionist"/"housekeeper" depuis cette app, qui disparaîtrait aussitôt
+    // de la liste du personnel.
+    return unwrap<RoleOptionDto[]>(response).filter((role) => RESTAURANT_ROLES.has(role.name));
 }
 
 export async function listPermissions(): Promise<Permission[]> {

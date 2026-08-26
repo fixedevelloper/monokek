@@ -88,41 +88,8 @@ export const useCart = () => {
     }
   };
 
-  /**
-   * Valide la commande et prépare l'objet pour l'API Laravel
-   */
-  const checkout = async (orderType: 'dinein' | 'takeaway', tableId?: string | number | null) => {
-    if (cart.items.length === 0) {
-      toast({ 
-        title: "Panier vide", 
-        description: "Veuillez ajouter des articles avant de commander",
-        variant: "destructive" 
-      });
-      return null;
-    }
-
-    // Structure correspondant à tes migrations Laravel 'orders' et 'order_items'
-    const orderPayload = {
-      type: orderType,
-      table_id: tableId,
-      subtotal: cart.total, // Selon ta logique de calcul dans le store
-      total: cart.total,
-      status: 'pending',
-      items: cart.items.map(item => ({
-        product_id: item.product_id,
-        variant_id: item.variant_id || null,
-        qty: item.qty,
-        price: item.price,
-        modifiers: item.modifiers?.map(m => m.id) || [], // Pour la table pivot order_item_modifiers
-      })),
-    };
-
-    return orderPayload;
-  };
-
   return {
     ...cart, // On expose toutes les méthodes du store (items, removeItem, clearCart, etc.)
     addToCart,
-    checkout,
   };
 };

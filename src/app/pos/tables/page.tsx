@@ -111,7 +111,7 @@ export default function TablesPage() {
                         <div
                             key={table.id}
                             //onClick={() => table.status === 'free' && router.push(`/pos/order?table=${table.id}`)}
-                            onClick={() => router.push(`/pos/sales/tables/order?table=${table.id}`)}
+                            onClick={() => router.push(`/pos/tables/order?table=${table.id}`)}
                             className={cn(
                                 "relative group flex flex-col p-5 rounded-[2.5rem] border-2 transition-all duration-200 cursor-pointer h-52 hover:-translate-y-1 active:scale-[0.98]",
                                 // État Disponible

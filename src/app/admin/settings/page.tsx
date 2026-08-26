@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,12 +27,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {usePrint} from "../../../hooks/use-print";
 import {Printer, PrinterFormValues} from "../../../types/menus";
 import {getErrorMessage} from "@/src/lib/errors";
+import {useAuth} from "@/src/hooks/use-auth";
+import {PERMISSIONS} from "@/src/constants/roles";
 import * as kitchenStationApi from "@/src/lib/api/kitchenStation";
 import * as printingApi from "@/src/lib/api/printing";
 import {KitchenStation, STATION_TYPE_LABELS} from "@/src/types/kitchenStation";
 import * as companyApi from "@/src/lib/api/company";
 import * as cashierApi from "@/src/lib/api/cashier";
 import {CashRegister} from "@/src/types/cashier";
+import * as storageApi from "@/src/lib/api/storage";
 
 interface StoreSettingsForm {
   store_name?: string;
@@ -39,13 +43,17 @@ interface StoreSettingsForm {
   store_address?: string;
   store_bp?: string;
   store_logo?: string;
+  /** Fait apparaître (ou non) le mode de paiement "Chambre" à la caisse — voir components/pos/PaymentModal.tsx. */
+  room_charge_enabled?: boolean;
   [key: string]: unknown;
 }
 
 export default function SettingsPage() {
+  const {can} = useAuth();
   const [settings, setSettings] = useState<StoreSettingsForm>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [printerToEdit, setPrinterToEdit] = useState<Printer | null>(null);
@@ -89,31 +97,39 @@ export default function SettingsPage() {
 
   const testPrinterMutation = useMutation({
     mutationFn: async (printer: Printer) => {
-      // On crée un "Faux" Job qui sera traité par ton hook usePrint
-      const testJob = {
-        id: "TEST_" + Date.now(),
-        job_type: "receipt", // On utilise le format reçu pour le test
-        printer: printer,    // L'objet printer complet (incluant IP ou USB name)
-        content: {
-          order: {
-            reference: "TEST-PRINT",
-            total: "0",
-            items: [
-              {
-                qty: 1,
-                product: { name: "TEST IMPRESSION OK" },
-                price: 100,
-                total: 100
-              }
-            ],
-            table: { name: "TEST" },
-            cashier: { name: "ADMIN" }
-          }
-        }
-      };
+      if (printer.connection === "network") {
+        // Vrai ticket de test ESC/POS envoyé côté serveur — voir PrinterController.testConnection.
+        return await printingApi.testNetworkPrinter(printer.id);
+      }
 
-      // On appelle la logique centrale du hook
-      return await processPrintJob(testJob);
+      // USB : on rejoue le même chemin qu'un vrai job (renderTicketSections + tauri-plugin-thermal-printer).
+      const testReceipt = {
+        orderId: 0,
+        orderUuid: "test",
+        reference: "TEST-PRINT",
+        storeName: "Mono Kek",
+        storeAddress: null,
+        storePhone: null,
+        storeLogoUrl: null,
+        tableName: "TEST",
+        serverName: "ADMIN",
+        cashierName: "ADMIN",
+        rounds: [{ roundNumber: 1, items: [{ productName: "TEST IMPRESSION OK", qty: 1, unitPrice: 100, total: 100, modifierNames: [] }] }],
+        subtotal: 100,
+        tax: 0,
+        discount: 0,
+        total: 100,
+        paymentMethod: null,
+        amountReceived: null,
+        changeDue: null,
+      };
+      return await processPrintJob({
+        id: "TEST_" + Date.now(),
+        jobType: "receipt",
+        osPrinterName: printer.os_printer_name || null,
+        paperWidth: Number(printer.paper_width),
+        content: JSON.stringify(testReceipt),
+      });
     },
     onSuccess: () => {
       toast.success("Signal de test envoyé à l'imprimante !");
@@ -302,14 +318,16 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
-          <Button
-              onClick={handleSave}
-              disabled={saving}
-              className="gap-2 font-black uppercase text-[10px] tracking-widest h-12 px-6 shadow-xl shadow-primary/20"
-          >
-            {saving ? <Loader2 className="animate-spin h-4 w-4" /> : <Save size={16} />}
-            {saving ? "En cours..." : "Sauvegarder les modifications"}
-          </Button>
+          {can(PERMISSIONS.MANAGE_SETTINGS) && (
+            <Button
+                onClick={handleSave}
+                disabled={saving}
+                className="gap-2 font-black uppercase text-[10px] tracking-widest h-12 px-6 shadow-xl shadow-primary/20"
+            >
+              {saving ? <Loader2 className="animate-spin h-4 w-4" /> : <Save size={16} />}
+              {saving ? "En cours..." : "Sauvegarder les modifications"}
+            </Button>
+          )}
         </div>
 
         <Tabs defaultValue="printing" className="space-y-6">
@@ -639,6 +657,21 @@ export default function SettingsPage() {
 
                   ---
 
+                  {/* Mode Chambre (facturation hôtel via pms-modulith) */}
+                  <div className="flex items-center justify-between p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                    <div>
+                      <Label className="text-[10px] font-black uppercase ml-1">Mode Chambre</Label>
+                      <p className="text-xs text-muted-foreground font-medium mt-1 max-w-md">
+                        Affiche l'option de paiement "Chambre" à la caisse (facturation au folio d'un client
+                        d'hôtel via l'intégration PMS). À activer uniquement si cet établissement gère un hôtel.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={Boolean(settings.room_charge_enabled)}
+                      onCheckedChange={(checked) => updateSetting('room_charge_enabled', checked)}
+                    />
+                  </div>
+
                   {/* Logo de la boutique */}
                   <div className="grid gap-2">
                     <Label className="text-[10px] font-black uppercase ml-1">Logo de la boutique</Label>
@@ -653,20 +686,39 @@ export default function SettingsPage() {
                       <Input
                           type="file"
                           accept="image/*"
-                          onChange={(e) => {
+                          disabled={uploadingLogo}
+                          onChange={async (e) => {
                             const file = e.target.files?.[0];
-                            if (file) {
-                              // Exemple de conversion en Base64 pour l'aperçu/stockage local
-                              // À adapter selon votre logique d'upload (S3, Cloudinary, etc.)
-                              const reader = new FileReader();
-                              reader.onloadend = () => {
-                                updateSetting('store_logo', reader.result as string);
-                              };
-                              reader.readAsDataURL(file);
+                            e.target.value = "";
+                            if (!file) return;
+
+                            if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
+                              toast.error("Format non supporté (jpeg, png, webp, gif uniquement)");
+                              return;
+                            }
+                            if (file.size > 5 * 1024 * 1024) {
+                              toast.error("Fichier trop volumineux (5 Mo maximum)");
+                              return;
+                            }
+
+                            // Uploadé vers MinIO (voir storageApi.uploadImage) : on ne stocke qu'une URL dans
+                            // le réglage `store_logo`, pas l'image encodée en base64 — la colonne `settings.value`
+                            // est un TEXT MySQL (64 Ko max), qu'un base64 d'image dépasse presque toujours,
+                            // ce qui faisait échouer TOUT l'enregistrement des réglages (transaction unique).
+                            setUploadingLogo(true);
+                            try {
+                              const url = await storageApi.uploadImage(file, "store");
+                              updateSetting('store_logo', url);
+                              toast.success("Logo envoyé !");
+                            } catch {
+                              toast.error("Échec de l'envoi du logo");
+                            } finally {
+                              setUploadingLogo(false);
                             }
                           }}
                           className="h-12 bg-white border-slate-200 rounded-xl file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer pt-2"
                       />
+                      {uploadingLogo && <span className="text-[10px] font-bold uppercase text-slate-400">Envoi en cours...</span>}
                     </div>
                   </div>
 

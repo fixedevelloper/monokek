@@ -18,6 +18,7 @@ export interface SpringPage<T> {
     totalPages: number;
     number: number;
     size: number;
+    last: boolean;
 }
 
 export class ApiError extends Error {

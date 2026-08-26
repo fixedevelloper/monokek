@@ -63,6 +63,7 @@ export default function ComptoirPage() {
             return data as KitchenTicket[];
         },
         enabled: !!stationId,
+        refetchOnMount: 'always',
     });
 
     // 3. Écoute temps réel via SSE — payload léger (pas les items), donc on
@@ -95,6 +96,10 @@ export default function ComptoirPage() {
                 }
                 return prev.map(t => t.id === ticketId ? { ...t, status: nextStatus } : t);
             });
+            // Ce patch ne touche que le cache local des tickets comptoir — sans ça, l'écran
+            // Vente (PosSalesPage) affichait un statut périmé en y naviguant juste après une
+            // action ici (même cause que le fix sur PosContent.tsx#handleRequestBilling).
+            queryClient.invalidateQueries({ queryKey: ['pos-sales-orders'] });
 
             if (nextStatus === 'served') {
                 toast.success("Commande prête à servir !");

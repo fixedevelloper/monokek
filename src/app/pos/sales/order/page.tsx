@@ -24,9 +24,18 @@ import {useNotifications} from '@/src/providers/NotificationsProvider';
 import { Layers, Clock, User } from 'lucide-react';
 import {OrderItem} from "../../../../types/menus";
 import {useQuery, useQueryClient} from '@tanstack/react-query';
+import {Trash2} from 'lucide-react';
 
 export default function PosSalesPage() {
     const queryClient = useQueryClient();
+    const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+    const [cancelReason, setCancelReason] = useState("");
+    const [cancelManagerPin, setCancelManagerPin] = useState("");
+    const [isCancelling, setIsCancelling] = useState(false);
+    const [voidRoundTarget, setVoidRoundTarget] = useState<{ id: number; roundNumber: number } | null>(null);
+    const [voidReason, setVoidReason] = useState("");
+    const [voidManagerPin, setVoidManagerPin] = useState("");
+    const [isVoidingRound, setIsVoidingRound] = useState(false);
     const {
         data: orders = [],
         isLoading: isOrdersLoading,
@@ -144,6 +153,41 @@ export default function PosSalesPage() {
         }
     };
 
+    const handleCancelOrder = async () => {
+        if (!selectedSale || !cancelReason.trim() || cancelManagerPin.trim().length !== 4) return;
+        setIsCancelling(true);
+        try {
+            await orderingApi.cancelOrder(selectedSale.uuid, cancelReason.trim(), cancelManagerPin.trim());
+            toast.success("Commande annulée");
+            setIsCancelDialogOpen(false);
+            setCancelReason("");
+            setCancelManagerPin("");
+            refetchOrders();
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Impossible d'annuler cette commande"));
+        } finally {
+            setIsCancelling(false);
+        }
+    };
+
+    const handleVoidRound = async () => {
+        if (!voidRoundTarget || !voidReason.trim() || voidManagerPin.trim().length !== 4) return;
+        setIsVoidingRound(true);
+        try {
+            const updated = await orderingApi.voidRound(voidRoundTarget.id, voidReason.trim(), voidManagerPin.trim());
+            toast.success(`Round ${voidRoundTarget.roundNumber} supprimé`);
+            setSelectedSale(updated);
+            setVoidRoundTarget(null);
+            setVoidReason("");
+            setVoidManagerPin("");
+            refetchOrders();
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Impossible de supprimer ce round"));
+        } finally {
+            setIsVoidingRound(false);
+        }
+    };
+
     const confirmFinalClose = async () => {
         try {
             const report = await cashierApi.close(parseFloat(closingAmount), note);
@@ -256,26 +300,46 @@ export default function PosSalesPage() {
                             <ScrollArea className="flex-1 min-h-0 w-full bg-slate-50/50 rounded-[2.5rem] p-8 border-2 border-dashed border-slate-200 mb-8">
                                 <div className="space-y-10">
                                     {selectedSale.rounds?.map((round) => (
-                                        <div key={round.id} className="relative">
+                                        <div key={round.id} className={cn("relative", round.status === 'voided' && "opacity-40")}>
                                             {/* Header du Round */}
                                             <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="h-6 w-6 rounded-lg bg-primary text-white flex items-center justify-center">
+                                                    <div className={cn("h-6 w-6 rounded-lg text-white flex items-center justify-center", round.status === 'voided' ? "bg-red-500" : "bg-primary")}>
                                                         <Layers size={12} />
                                                     </div>
-                                                    <span className="font-black text-xs uppercase italic tracking-widest">
+                                                    <span className={cn("font-black text-xs uppercase italic tracking-widest", round.status === 'voided' && "line-through")}>
                                                         Round {round.round_number}
                                                     </span>
+                                                    {round.status === 'voided' && (
+                                                        <Badge className="bg-red-100 text-red-700 border-none font-black text-[9px] px-2 py-0">Supprimé</Badge>
+                                                    )}
                                                 </div>
-                                                <div className="flex items-center gap-1 text-muted-foreground">
-                                                    <Clock size={12} />
-                                                    <span className="text-[10px] font-bold uppercase">
-                                                        {round.sent_at
-                                                            ? new Date(round.sent_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-                                                            : 'Envoyé'}
-                                                    </span>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex items-center gap-1 text-muted-foreground">
+                                                        <Clock size={12} />
+                                                        <span className="text-[10px] font-bold uppercase">
+                                                            {round.sent_at
+                                                                ? new Date(round.sent_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                                                                : 'Envoyé'}
+                                                        </span>
+                                                    </div>
+                                                    {round.status !== 'voided' && round.status !== 'served' && selectedSale.status !== 'paid' && selectedSale.status !== 'cancelled' && (
+                                                        <button
+                                                            onClick={() => setVoidRoundTarget({ id: round.id, roundNumber: round.round_number })}
+                                                            className="text-red-500 hover:text-red-700 transition-colors"
+                                                            title="Supprimer ce round"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
+
+                                            {round.status === 'voided' && round.void_reason && (
+                                                <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-3 -mt-2">
+                                                    {round.void_reason}
+                                                </p>
+                                            )}
 
                                             {/* Items du Round */}
                                             <div className="space-y-4 pl-4">
@@ -336,6 +400,7 @@ export default function PosSalesPage() {
                                     <Button
                                         variant="outline"
                                         disabled={selectedSale.status === 'cancelled' || selectedSale.status === 'paid'}
+                                        onClick={() => setIsCancelDialogOpen(true)}
                                         className="h-20 flex flex-col gap-1 rounded-3xl border-2 border-slate-100 hover:bg-red-50 hover:text-red-600 transition-all"
                                     >
                                         <RotateCcw className="h-6 w-6" />
@@ -428,6 +493,118 @@ export default function PosSalesPage() {
                                     className="flex-1 h-14 rounded-2xl bg-stone-900 text-white font-black uppercase tracking-wider disabled:opacity-50"
                                 >
                                     Clôturer Définitivement
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
+            {isCancelDialogOpen && selectedSale && (
+                <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+                    <Card className="max-w-md w-full rounded-[2.5rem] shadow-2xl border-none">
+                        <CardContent className="p-10 space-y-6">
+                            <div className="text-center space-y-2">
+                                <h2 className="text-2xl font-serif font-bold italic">Annuler la commande</h2>
+                                <p className="text-[10px] text-stone-400 uppercase tracking-widest">
+                                    {selectedSale.reference} — {selectedSale.amounts.formatted_total}
+                                </p>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest ml-2">Motif (obligatoire)</label>
+                                <textarea
+                                    value={cancelReason}
+                                    onChange={(e) => setCancelReason(e.target.value)}
+                                    placeholder="Ex: client parti sans payer, erreur de saisie..."
+                                    className="w-full rounded-2xl bg-stone-50 border-none p-4 text-sm focus:ring-0 min-h-[100px]"
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest ml-2">Code PIN manager (obligatoire)</label>
+                                <Input
+                                    type="password"
+                                    inputMode="numeric"
+                                    maxLength={4}
+                                    value={cancelManagerPin}
+                                    onChange={(e) => setCancelManagerPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                    placeholder="••••"
+                                    className="h-14 rounded-2xl bg-stone-50 border-none text-center text-2xl tracking-[0.6em] font-mono"
+                                />
+                                <p className="text-[9px] text-stone-400 uppercase tracking-widest ml-2">Un manager doit saisir son code pour valider</p>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <Button
+                                    onClick={() => { setIsCancelDialogOpen(false); setCancelReason(""); setCancelManagerPin(""); }}
+                                    className="flex-1 h-14 rounded-2xl bg-stone-100 text-stone-600 font-bold"
+                                >
+                                    Retour
+                                </Button>
+                                <Button
+                                    onClick={handleCancelOrder}
+                                    disabled={!cancelReason.trim() || cancelManagerPin.trim().length !== 4 || isCancelling}
+                                    className="flex-1 h-14 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-wider disabled:opacity-50"
+                                >
+                                    {isCancelling ? "Annulation..." : "Confirmer l'annulation"}
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
+            {voidRoundTarget && (
+                <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+                    <Card className="max-w-md w-full rounded-[2.5rem] shadow-2xl border-none">
+                        <CardContent className="p-10 space-y-6">
+                            <div className="text-center space-y-2">
+                                <h2 className="text-2xl font-serif font-bold italic">Supprimer le round {voidRoundTarget.roundNumber}</h2>
+                                <p className="text-[10px] text-stone-400 uppercase tracking-widest">
+                                    Retiré de l'addition — ne s'annule pas
+                                </p>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest ml-2">Motif (obligatoire)</label>
+                                <textarea
+                                    value={voidReason}
+                                    onChange={(e) => setVoidReason(e.target.value)}
+                                    placeholder="Ex: erreur de saisie, client a changé d'avis..."
+                                    className="w-full rounded-2xl bg-stone-50 border-none p-4 text-sm focus:ring-0 min-h-[100px]"
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest ml-2">Code PIN manager (obligatoire)</label>
+                                <Input
+                                    type="password"
+                                    inputMode="numeric"
+                                    maxLength={4}
+                                    value={voidManagerPin}
+                                    onChange={(e) => setVoidManagerPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                    placeholder="••••"
+                                    className="h-14 rounded-2xl bg-stone-50 border-none text-center text-2xl tracking-[0.6em] font-mono"
+                                />
+                                <p className="text-[9px] text-stone-400 uppercase tracking-widest ml-2">Un manager doit saisir son code pour valider</p>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <Button
+                                    onClick={() => { setVoidRoundTarget(null); setVoidReason(""); setVoidManagerPin(""); }}
+                                    className="flex-1 h-14 rounded-2xl bg-stone-100 text-stone-600 font-bold"
+                                >
+                                    Retour
+                                </Button>
+                                <Button
+                                    onClick={handleVoidRound}
+                                    disabled={!voidReason.trim() || voidManagerPin.trim().length !== 4 || isVoidingRound}
+                                    className="flex-1 h-14 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-wider disabled:opacity-50"
+                                >
+                                    {isVoidingRound ? "Suppression..." : "Confirmer la suppression"}
                                 </Button>
                             </div>
                         </CardContent>

@@ -15,6 +15,7 @@ export interface PrinterFormValues {
     paper_width: string;   // Ajouté pour le typage
     char_per_line: number; // Ajouté pour le typage
     use_beep: boolean;     // Ajouté pour le typage
+    os_printer_name: string; // Nom CUPS/Windows de l'imprimante — usb uniquement
 }
 export interface Printer extends PrinterFormValues {
     id: number | string;
@@ -32,11 +33,12 @@ export interface Product {
     sku: string | null;
     description: string | null;
     price: number;
+    purchase_price: number | null;
     incentive_amount:number;
     formatted_price: string;
-    // Le catalogue Spring n'expose que categoryId/categoryName sur ProductDto,
+    // Le catalogue Spring n'expose que categoryId/categoryName/branchId sur ProductDto,
     // pas une Category complète — voir lib/api/catalog.ts.
-    category: { id: number; name: string };
+    category: { id: number; name: string; branch_id: number | null };
     modifiers: Modifier[];
     is_active: boolean;
     track_stock: boolean;
@@ -50,6 +52,7 @@ export interface Category {
     id: number | null;
     name: string;
     branch_id: number;
+    kitchen_station_id: number | null;
     slug: string;
     description?: string;
     icon?: string;
@@ -105,6 +108,7 @@ export interface Round {
     sent_at: string | null;
     items?: OrderItem[];
     total_round?: number;
+    void_reason?: string | null;
 }
 export interface Order {
     id: number;
@@ -121,6 +125,7 @@ export interface Order {
         discount: number;
         total: number;
         formatted_total: string;
+        coupon_code: string | null;
     };
 
     // Relations — OrderDto n'expose que des références imbriquées, pas de
@@ -146,7 +151,7 @@ export interface Order {
 
 export interface Reservation {
     id: number;
-    pickup_date: string;
+    pickup_date: string | null;
     guests_count: number;
     manager_notes: string | null;
     reservation_status: string;
@@ -171,19 +176,4 @@ export interface Commission {
     product_name: string;
     is_incentive: boolean;
     status_label: string;
-}
-
-// Utile pour la création d'une commande (Payload API)
-export interface CreateOrderPayload {
-    table_id: number | null;
-    items: {
-        product_id: number;
-        variant_id?: number | null;
-        qty: number;
-        price: number;
-        modifiers?: number[]; // IDs des modificateurs
-    }[];
-    subtotal: number;
-    total: number;
-    note?: string;
 }

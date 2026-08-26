@@ -108,10 +108,17 @@ export function ReservationSheet({ open, onOpenChange, categories, reservation =
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase text-slate-400">Date et Heure</label>
                                 <div className="relative">
-                                    <Input  type="datetime-local" className="h-12 rounded-xl bg-slate-50 border-none font-bold"
-                                        placeholder=""
+                                    <Input
+                                        type="datetime-local"
+                                        className="h-12 rounded-xl bg-slate-50 border-none font-bold"
                                         value={formData.pickup_date}
-                                        onChange={e => setField("pickup_date", e.target.value)}
+                                        onChange={e => {
+                                            setField("pickup_date", e.target.value);
+                                            // Si la valeur est complète (AAAA-MM-JJTHH:MM = 16 caractères), on ferme le picker
+                                            if (e.target.value.length >= 16) {
+                                                e.target.blur();
+                                            }
+                                        }}
                                     />
                                 </div>
                             </div>

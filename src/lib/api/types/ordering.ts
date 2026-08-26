@@ -6,6 +6,7 @@ export interface AmountsDto {
     discount: number;
     total: number;
     formattedTotal: string;
+    couponCode: string | null;
 }
 
 export interface TableRefDto {
@@ -47,6 +48,7 @@ export interface OrderRoundDto {
     sentAt: string | null;
     items: OrderItemDto[];
     totalRound: number;
+    voidReason: string | null;
 }
 
 export interface OrderDto {
@@ -91,6 +93,8 @@ export interface SendRoundResultDto {
 export interface FinalizePaymentRequestDto {
     paymentMethod: string;
     amountReceived: number;
+    /** Only used when paymentMethod is 'room_charge' — bills the order to this hotel room's folio via pms-modulith. */
+    roomNumber?: string;
 }
 
 export interface AddItemToRoundRequestDto {

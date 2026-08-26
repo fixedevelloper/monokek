@@ -18,6 +18,21 @@ export interface CashSession {
     note: string | null;
 }
 
+export interface CashSessionAdmin {
+    id: number;
+    register_id: number;
+    register_name: string;
+    branch_id: number;
+    cashier_user_id: number;
+    cashier_name: string | null;
+    opening_amount: number;
+    closing_amount: number | null;
+    expected_amount: number | null;
+    opened_at: string;
+    closed_at: string | null;
+    open: boolean;
+}
+
 export interface CashStatus {
     is_open: boolean;
     session: CashSession | null;
