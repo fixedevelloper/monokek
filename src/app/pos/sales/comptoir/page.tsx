@@ -75,7 +75,7 @@ export default function ComptoirPage() {
             if (Number(payload?.stationId) !== stationId) return;
 
             queryClient.invalidateQueries({ queryKey: ticketsQueryKey });
-            const audio = new Audio('/sounds/new-order.mp3');
+            const audio = new Audio('/sounds/notification.mp3');
             audio.play().catch(() => {});
             toast.info(`Nouveau ticket : Table ${payload?.tableName || 'N/A'}`);
         });

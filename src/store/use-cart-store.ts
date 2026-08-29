@@ -51,6 +51,24 @@ interface CartState {
     updateQty: (id: string, qty: number) => void;
     applyDiscount: (amount: number) => void;
     clearCart: () => void;
+
+    // À appeler quand une commande vient d'être payée (voir PaymentModal.tsx) — contrairement à
+    // clearCart (appelé juste après l'envoi d'un round, où orderId doit être préservé pour que
+    // le round suivant s'attache à la même commande), celui-ci remet aussi orderId à null : une
+    // fois payée, il n'y a plus rien à quoi attacher un round supplémentaire. Prend l'id de la
+    // commande PAYÉE (pas le tableId) et ne réinitialise que si elle correspond exactement à
+    // l'orderId actuellement suivi par ce store — une table virtuelle/comptoir est réutilisée par
+    // des commandes complètement différentes au fil de la journée : comparer seulement le tableId
+    // aurait pu effacer un round en cours de composition (encore non envoyé) pour cette même table
+    // à cause du paiement d'une commande plus ancienne et sans rapport.
+    resetAfterPayment: (paidOrderId: number | null) => void;
+
+    // Filet de sécurité pour un `orderId` déjà périmé au moment d'envoyer un round (résidu d'un
+    // état persisté antérieur à resetAfterPayment, ou toute autre commande fermée entre-temps
+    // sans passer par cette app) — le serveur répond alors 409 (Order#assertOpen). Contrairement
+    // à resetAfterPayment, ne touche PAS aux items : le caissier ne doit pas perdre sa sélection,
+    // juste pouvoir renvoyer le round une fois l'orderId périmé écarté. Voir PosContent.tsx.
+    clearStaleOrderId: (tableId: number | null) => void;
 }
 
 const computeTotals = (items: CartItem[], discount = 0): Totals => {
@@ -177,6 +195,25 @@ export const useCartStore = create<CartState>()(
                     discount: 0,
                     total: 0
                 }),
+
+            resetAfterPayment: (paidOrderId) => {
+                const current = get();
+                if (paidOrderId == null || current.orderId !== paidOrderId) return;
+                set({
+                    orderId: null,
+                    items: [],
+                    subtotal: 0,
+                    tax: 0,
+                    discount: 0,
+                    total: 0
+                });
+            },
+
+            clearStaleOrderId: (tableId) => {
+                const current = get();
+                if (tableId != null && current.tableId !== tableId) return;
+                set({ orderId: null });
+            },
         }),
         {
             name: 'mono-kek-cart-storage',

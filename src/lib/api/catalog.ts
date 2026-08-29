@@ -42,6 +42,10 @@ export function mapModifierDtoToModifier(dto: ModifierDto): Modifier {
     return {
         id: dto.id,
         name: dto.name,
+        type: dto.type,
+        required: dto.required,
+        minSelect: dto.minSelect,
+        maxSelect: dto.maxSelect,
         items: dto.items.map((item) => ({ id: item.id, name: item.name, price: item.price, quantity: 1 })),
     };
 }

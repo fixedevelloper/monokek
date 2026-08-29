@@ -61,6 +61,7 @@ export interface OrderDto {
     table: TableRefDto | null;
     waiter: PersonRefDto | null;
     cashier: PersonRefDto | null;
+    customer: PersonRefDto | null;
     rounds: OrderRoundDto[];
     note: string | null;
     time: string;

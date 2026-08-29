@@ -26,12 +26,17 @@ export function RecipeSheet({ product, open, onOpenChange }: RecipeSheetProps) {
   const [recipeItems, setRecipeItems] = useState<RecipeFormItem[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Charger la recette existante au montage
+  // Charger la recette existante au montage. La réponse a deux formes possibles :
+  // {message, items: []} quand aucune recette n'existe encore, ou {id, productName, items:
+  // [{ingredientId, name, qty, unit}]} sinon — dans les deux cas la clé est "items", mais chaque
+  // ligne n'a un ingredientId (nécessaire pour pré-sélectionner le bon ingrédient dans le
+  // formulaire) que dans le second cas.
   useEffect(() => {
     if (open && product) {
       fetchIngredients(); // Pour avoir la liste des ingrédients dispos
       api.get(`/api/admin/products/${product.id}/recipe`).then(({ data }) => {
-        setRecipeItems(data.items || []);
+        const items = (data.items || []) as { ingredientId?: number; qty: number | string }[];
+        setRecipeItems(items.map((item) => ({ ingredient_id: item.ingredientId ?? "", qty: item.qty })));
       });
     }
   }, [open, product]);
@@ -62,7 +67,10 @@ export function RecipeSheet({ product, open, onOpenChange }: RecipeSheetProps) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-[500px] overflow-y-auto">
+      {/* Même bug que SupplementSheet.tsx : `sm:max-w-[500px]` seul ne l'emporte pas sur le
+          `data-[side=right]:sm:max-w-sm` de base (variant chain différente pour twMerge) — il
+          faut reprendre exactement le même préfixe pour que la fusion le remplace vraiment. */}
+      <SheetContent className="data-[side=right]:sm:max-w-[500px] overflow-y-auto">
         <SheetHeader className="mb-8">
           <SheetTitle className="text-3xl font-black uppercase italic tracking-tighter">
             Fiche <span className="text-primary">Technique</span>

@@ -3,10 +3,11 @@ import {useQueryClient} from "@tanstack/react-query"; // Import indispensable
 import {Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle} from "@/components/ui/sheet";
 import {Button} from "@/components/ui/button";
 import {ScrollArea} from "@/components/ui/scroll-area";
-import {Layers, Loader2, Save} from "lucide-react";
+import {Layers, Loader2, Plus, Save} from "lucide-react";
 import {toast} from "sonner";
 import * as catalogApi from "../../../lib/api/catalog";
 import {ModifierGroupCard} from "./ModifierGroupCard";
+import {ModifierGroupFormModal} from "./ModifierGroupFormModal";
 import {Modifier, Product} from "../../../types/menus";
 
 interface SupplementSheetProps {
@@ -21,6 +22,8 @@ export function SupplementSheet({ product, open, onOpenChange, allModifiersGroup
   const queryClient = useQueryClient();
   const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<Modifier | null>(null);
+  const [isGroupFormOpen, setIsGroupFormOpen] = useState(false);
 
   useEffect(() => {
     if (open && product?.modifiers) {
@@ -45,8 +48,15 @@ export function SupplementSheet({ product, open, onOpenChange, allModifiersGroup
   };
 
   return (
+    <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="sm:max-w-[500px] flex flex-col p-0 border-none shadow-2xl overflow-hidden">
+        {/* SheetContent's base classes set the width as `data-[side=right]:sm:max-w-sm` (384px) —
+            overriding with a bare `sm:max-w-[500px]` doesn't work: twMerge only dedupes utilities
+            sharing the exact same variant chain, and `sm:` alone isn't recognized as the same
+            chain as `data-[side=right]:sm:`, so both classes survived and the narrower one won
+            the CSS cascade, clipping every group card's right-side buttons (overflow-hidden on
+            this same element). Must match the base class's exact variant prefix to actually win. */}
+        <SheetContent className="data-[side=right]:sm:max-w-[500px] flex flex-col p-0 border-none shadow-2xl overflow-hidden">
           <SheetHeader className="p-8 pb-4 shrink-0">
             <div className="flex items-center justify-between">
               <SheetTitle className="text-4xl font-black uppercase italic tracking-tighter leading-none">
@@ -58,6 +68,14 @@ export function SupplementSheet({ product, open, onOpenChange, allModifiersGroup
                   </div>
               )}
             </div>
+
+            <Button
+                variant="outline"
+                onClick={() => { setEditingGroup(null); setIsGroupFormOpen(true); }}
+                className="w-full mt-3 h-11 rounded-2xl border-2 border-dashed font-bold text-xs gap-2"
+            >
+              <Plus size={14}/> Nouveau groupe
+            </Button>
 
             <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100 mt-3">
               <div className="bg-white p-2.5 rounded-xl shadow-sm border border-slate-100">
@@ -79,6 +97,7 @@ export function SupplementSheet({ product, open, onOpenChange, allModifiersGroup
                       isSelected={selectedGroupIds.includes(group.id)}
                       onToggle={toggleGroup}
                       onRefresh={() => queryClient.invalidateQueries({ queryKey: ['modifier-groups'] })}
+                      onEditConfig={() => { setEditingGroup(group); setIsGroupFormOpen(true); }}
                   />
               ))}
             </div>
@@ -92,5 +111,13 @@ export function SupplementSheet({ product, open, onOpenChange, allModifiersGroup
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <ModifierGroupFormModal
+          group={editingGroup}
+          open={isGroupFormOpen}
+          onOpenChange={setIsGroupFormOpen}
+          onSaved={() => queryClient.invalidateQueries({ queryKey: ['modifier-groups'] })}
+      />
+    </>
   );
 }

@@ -45,6 +45,9 @@ interface StoreSettingsForm {
   store_logo?: string;
   /** Fait apparaître (ou non) le mode de paiement "Chambre" à la caisse — voir components/pos/PaymentModal.tsx. */
   room_charge_enabled?: boolean;
+  /** Si false (défaut), le POS bloque la sélection d'un produit storable dont le stock est
+   * épuisé — voir components/pos/PosContent.tsx. */
+  allow_oversell?: boolean;
   [key: string]: unknown;
 }
 
@@ -669,6 +672,21 @@ export default function SettingsPage() {
                     <Switch
                       checked={Boolean(settings.room_charge_enabled)}
                       onCheckedChange={(checked) => updateSetting('room_charge_enabled', checked)}
+                    />
+                  </div>
+
+                  {/* Vente en stock insuffisant (produits storable) */}
+                  <div className="flex items-center justify-between p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                    <div>
+                      <Label className="text-[10px] font-black uppercase ml-1">Vente en stock insuffisant</Label>
+                      <p className="text-xs text-muted-foreground font-medium mt-1 max-w-md">
+                        Autorise la vente d'un produit dont le stock est épuisé. Si désactivé, le
+                        POS bloque la sélection du produit avec un message d'erreur.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={Boolean(settings.allow_oversell)}
+                      onCheckedChange={(checked) => updateSetting('allow_oversell', checked)}
                     />
                   </div>
 

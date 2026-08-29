@@ -9,6 +9,10 @@ export interface ModifierItemDto {
 export interface ModifierDto {
     id: number;
     name: string;
+    type: 'accompaniment' | 'supplement';
+    required: boolean;
+    minSelect: number;
+    maxSelect: number | null;
     items: ModifierItemDto[];
 }
 
@@ -124,11 +128,19 @@ export interface BulkImportRequestDto {
 
 export interface CreateModifierRequestDto {
     name: string;
+    type?: 'accompaniment' | 'supplement';
+    required?: boolean;
+    minSelect?: number;
+    maxSelect?: number;
     items?: { name: string; price: number }[];
 }
 
 export interface UpdateModifierRequestDto {
     name: string;
+    type?: 'accompaniment' | 'supplement';
+    required?: boolean;
+    minSelect?: number;
+    maxSelect?: number;
 }
 
 export interface CreateModifierItemRequestDto {

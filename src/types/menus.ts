@@ -24,6 +24,10 @@ export interface Printer extends PrinterFormValues {
 export interface Modifier {
     id: number;
     name: string; // ex: "Cuisson", "Suppléments"
+    type: 'accompaniment' | 'supplement';
+    required: boolean;
+    minSelect: number;
+    maxSelect: number | null;
     items: ModifierItem[];
 }
 
@@ -144,6 +148,10 @@ export interface Order {
         id: number;
         name: string;
     };
+    customer?: {
+        id: number;
+        name: string;
+    } | null;
     note?: string | null;
     created_at: string; // Vient de OrderDto.time (format "H:i")
     date: string;       // Format "d/m/Y"

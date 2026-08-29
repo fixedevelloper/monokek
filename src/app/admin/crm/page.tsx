@@ -20,6 +20,7 @@ import {
     XCircle,
     Printer,
     Loader2,
+    ListOrdered,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import * as crmApi from "@/src/lib/api/crm";
+import * as printingApi from "@/src/lib/api/printing";
 import { CouponDto, CustomerDto } from "@/src/lib/api/types/crm";
 import { formatCurrency } from "@/src/lib/formatCurrency";
 import { getErrorMessage } from "@/src/lib/errors";
@@ -43,6 +45,7 @@ import { AddCustomerModal } from "./AddCustomerModal";
 import { EditCustomerModal } from "./EditCustomerModal";
 import { CustomerLoyaltySheet } from "./CustomerLoyaltySheet";
 import { AddCouponModal } from "./AddCouponModal";
+import { CouponOrdersModal } from "./CouponOrdersModal";
 
 export default function AdminCrmPage() {
     const [customers, setCustomers] = useState<CustomerDto[]>([]);
@@ -54,6 +57,7 @@ export default function AdminCrmPage() {
     const [loyaltyCustomer, setLoyaltyCustomer] = useState<CustomerDto | null>(null);
     const [isLoyaltySheetOpen, setIsLoyaltySheetOpen] = useState(false);
     const [printingCouponId, setPrintingCouponId] = useState<number | null>(null);
+    const [couponForOrders, setCouponForOrders] = useState<CouponDto | null>(null);
 
     const fetchCustomers = async () => {
         try {
@@ -87,6 +91,19 @@ export default function AdminCrmPage() {
                 toast.error("Succursale introuvable — vérifiez la configuration du poste.");
                 return;
             }
+            // Le back-end accepte la demande d'impression même sans imprimante configurée pour
+            // cette succursale (l'événement est publié en fire-and-forget) : sans ce contrôle,
+            // le caissier/admin voyait un faux "Coupon envoyé à l'impression" alors que rien ne
+            // partait jamais. On vérifie donc ici qu'au moins une imprimante active existe pour
+            // cette succursale avant d'appeler l'impression, pour remonter une vraie erreur.
+            const printers = await printingApi.listPrinters(branchId);
+            const hasActivePrinter = printers.some(
+                (p) => p.status === "online" && (p.location === "receipt" || p.location === "coupon")
+            );
+            if (!hasActivePrinter) {
+                toast.error("Aucune imprimante active configurée pour cette succursale (Admin > Paramètres > Imprimantes).");
+                return;
+            }
             await crmApi.printCoupon(coupon.id, branchId);
             toast.success("Coupon envoyé à l'impression");
         } catch (error) {
@@ -97,7 +114,7 @@ export default function AdminCrmPage() {
     };
 
     const handleDeleteCustomer = async (customer: CustomerDto) => {
-        if (!confirm(`Supprimer la fiche de ${customer.name} ? Cette action est irréversible.`)) return;
+        if (!confirm(`Supprimer la fiche de ${customer.name || "ce client"} ? Cette action est irréversible.`)) return;
 
         try {
             await crmApi.deleteCustomer(customer.id);
@@ -110,8 +127,8 @@ export default function AdminCrmPage() {
 
     const filteredCustomers = customers.filter(
         (c) =>
-            c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            c.phone.toLowerCase().includes(searchQuery.toLowerCase())
+            (c.name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (c.phone ?? "").toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     return (
@@ -219,7 +236,7 @@ export default function AdminCrmPage() {
                                                         </div>
                                                         <div className="min-w-0 flex-1">
                                                             <h3 className="font-bold text-base text-slate-900 dark:text-white truncate group-hover:text-primary transition-colors">
-                                                                {customer.name}
+                                                                {customer.name || "Client sans nom"}
                                                             </h3>
                                                             <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 uppercase text-[9px] font-extrabold tracking-wider gap-1 px-2 py-0.5 mt-1 rounded-md">
                                                                 <Coins className="h-3 w-3" /> {customer.points} PTS
@@ -372,20 +389,31 @@ export default function AdminCrmPage() {
                                             Utilisé {coupon.timesUsed} fois{coupon.maxUses != null ? ` / ${coupon.maxUses}` : ""}
                                         </p>
 
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={coupon.expired || printingCouponId === coupon.id}
-                                            onClick={() => handlePrintCoupon(coupon)}
-                                            className="w-full mt-4 h-9 rounded-xl text-[10px] font-bold uppercase tracking-widest gap-2"
-                                        >
-                                            {printingCouponId === coupon.id ? (
-                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                            ) : (
-                                                <Printer className="h-3.5 w-3.5" />
-                                            )}
-                                            Imprimer
-                                        </Button>
+                                        <div className="flex gap-2 mt-4">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={coupon.expired || printingCouponId === coupon.id}
+                                                onClick={() => handlePrintCoupon(coupon)}
+                                                className="flex-1 h-9 rounded-xl text-[10px] font-bold uppercase tracking-widest gap-2"
+                                            >
+                                                {printingCouponId === coupon.id ? (
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                ) : (
+                                                    <Printer className="h-3.5 w-3.5" />
+                                                )}
+                                                Imprimer
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setCouponForOrders(coupon)}
+                                                className="flex-1 h-9 rounded-xl text-[10px] font-bold uppercase tracking-widest gap-2"
+                                            >
+                                                <ListOrdered className="h-3.5 w-3.5" />
+                                                Commandes
+                                            </Button>
+                                        </div>
                                     </Card>
                                 ))}
                             </div>
@@ -420,6 +448,13 @@ export default function AdminCrmPage() {
                             open={isLoyaltySheetOpen}
                             onOpenChange={setIsLoyaltySheetOpen}
                             onPointsChanged={fetchCustomers}
+                        />
+                    )}
+                    {couponForOrders && (
+                        <CouponOrdersModal
+                            coupon={couponForOrders}
+                            open={!!couponForOrders}
+                            onOpenChange={(open) => { if (!open) setCouponForOrders(null); }}
                         />
                     )}
                 </main>

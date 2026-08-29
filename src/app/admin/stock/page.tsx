@@ -1,6 +1,7 @@
 "use client";
 
 import React, {useEffect, useState} from 'react';
+import {useRouter} from 'next/navigation';
 import {AlertCircle, ArrowLeft, History, Loader2, Minus, Plus, Search} from 'lucide-react';
 import {useStockStore} from "@/src/store/use-stock-store";
 import {Button} from "@/components/ui/button";
@@ -96,6 +97,7 @@ export default function StockPage() {
 }
 
 function IngredientCard({ item, onAdjust }: { item: Ingredient, onAdjust: (item: Ingredient, type: 'in' | 'out') => void }) {
+  const router = useRouter();
   const isLowStock = item.stock <= item.alert_qty;
 
   // Formater l'unité (soit objet, soit string selon ton API)
@@ -169,7 +171,7 @@ function IngredientCard({ item, onAdjust }: { item: Ingredient, onAdjust: (item:
         <Button
           variant="outline"
           className="rounded-2xl h-12 border-2 border-slate-100 text-slate-400 hover:bg-slate-900 hover:text-white transition-all"
-          onClick={() => window.location.href = `/admin/stock/history?ingredient_id=${item.id}`}
+          onClick={() => router.push(`/admin/stock/history?ingredient_id=${item.id}`)}
         >
           <History size={18} />
         </Button>

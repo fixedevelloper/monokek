@@ -24,6 +24,8 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import * as orderingApi from '@/src/lib/api/ordering';
 import * as catalogApi from '@/src/lib/api/catalog';
+import api from '@/src/lib/axios';
+import { AxiosError } from 'axios';
 import { CartItem, useCartStore } from '@/src/store/use-cart-store';
 import { ModifierModal } from './ModifierModal';
 import { toast } from 'sonner';
@@ -57,7 +59,7 @@ interface CartPanelProps {
     total: number;
     isSubmittingRound: boolean;
     pendingRoundItemIds: Set<number>;
-    onUpdateRoundItemQty: (roundId: number, itemId: number, newQty: number) => void;
+    onUpdateRoundItemQty: (roundId: number, itemId: number, newQty: number, productId: number, currentQty: number) => void;
     onRemoveRoundItem: (roundId: number, itemId: number) => void;
     onUpdateCartItemQty: (id: string, qty: number) => void;
     onRemoveCartItem: (id: string) => void;
@@ -140,7 +142,7 @@ const CartPanel = React.memo(function CartPanel({
                                                                 variant="ghost"
                                                                 disabled={isPending}
                                                                 className="h-6 w-6 rounded-full hover:bg-white"
-                                                                onClick={() => onUpdateRoundItemQty(round.id, item.id, item.qty - 1)}
+                                                                onClick={() => onUpdateRoundItemQty(round.id, item.id, item.qty - 1, item.product.id, item.qty)}
                                                             >
                                                                 <Minus size={10} />
                                                             </Button>
@@ -150,7 +152,7 @@ const CartPanel = React.memo(function CartPanel({
                                                                 variant="ghost"
                                                                 disabled={isPending}
                                                                 className="h-6 w-6 rounded-full hover:bg-white"
-                                                                onClick={() => onUpdateRoundItemQty(round.id, item.id, item.qty + 1)}
+                                                                onClick={() => onUpdateRoundItemQty(round.id, item.id, item.qty + 1, item.product.id, item.qty)}
                                                             >
                                                                 <Plus size={10} />
                                                             </Button>
@@ -296,7 +298,7 @@ export default function PosContent() {
 
     const {
         initCartForTable, syncOrderId, items, total, orderId,
-        clearCart, addItem, removeItem, updateQty
+        clearCart, addItem, removeItem, updateQty, clearStaleOrderId
     } = useCartStore();
 
     const [searchQuery, setSearchQuery] = useState("");
@@ -352,6 +354,72 @@ export default function PosContent() {
         queryFn: () => catalogApi.listProductsPos(),
     });
 
+    // Réglage Admin > Réglages > "Vente en stock insuffisant" — si false (défaut), le garde-fou
+    // ci-dessous (handleProductClick/handleConfirmModifiers) bloque la sélection d'un produit
+    // storable épuisé. Même patron que roomChargeEnabled dans PaymentModal.tsx.
+    const { data: allowOversell = false } = useQuery({
+        queryKey: ['store-settings', 'allow_oversell'],
+        queryFn: async () => {
+            const { data } = await api.get('/api/admin/settings');
+            return Boolean(data?.allow_oversell);
+        },
+        staleTime: 5 * 60 * 1000,
+    });
+
+    // Quantité déjà engagée pour ce produit sur CETTE commande, tous modificateurs confondus :
+    // panier local pas encore envoyé + rounds déjà envoyés mais pas encore payés (le stock, lui,
+    // n'est décrémenté côté serveur qu'au paiement — voir ProductStockDeductionListener — donc
+    // avant ça, `product.stock_count` ne reflète pas encore ce qui est déjà engagé ici). Compter
+    // seulement le panier local (comme avant) laissait passer un round 2 dépassant le stock dès
+    // que le round 1 en avait déjà pris une partie.
+    const qtyCommittedForProduct = (productId: number) => {
+        const inCart = items
+            .filter(i => i.product_id === productId)
+            .reduce((sum, i) => sum + i.qty, 0);
+        const inSentRounds = (activeOrder?.rounds ?? [])
+            .filter(r => r.status !== "voided")
+            .flatMap(r => r.items ?? [])
+            .filter(i => i.product.id === productId)
+            .reduce((sum, i) => sum + i.qty, 0);
+        return inCart + inSentRounds;
+    };
+
+    // Un produit non-"storable" (consumable/service) n'a pas de stock réel à surveiller — même
+    // convention que ProductService.deductForSale côté back-end (ne JAMAIS se baser sur
+    // `track_stock`, qui n'est positionné nulle part depuis l'admin).
+    const wouldExceedStock = (productId: number, productType: string, stockCount: number) =>
+        !allowOversell && productType === "storable" && qtyCommittedForProduct(productId) >= stockCount;
+
+    const hasInsufficientStock = (product: Product) =>
+        wouldExceedStock(product.id, product.type, product.stock_count);
+
+    // Garde-fous pour les boutons "+" qui n'ajoutent PAS un produit via handleProductClick :
+    // augmenter un article déjà dans le panier local ("Nouveau Round") ou déjà envoyé en cuisine
+    // ("Round N") contournait complètement le garde-fou stock insuffisant, l'un en restant
+    // local, l'autre en appelant directement l'API de mise à jour du round.
+    const guardedUpdateCartItemQty = (id: string, qty: number) => {
+        const current = items.find(i => i.id === id);
+        if (current && qty > current.qty) {
+            const product = products.find((p: Product) => p.id === current.product_id);
+            if (product && wouldExceedStock(product.id, product.type, product.stock_count)) {
+                toast.error(`Stock insuffisant pour ${product.name}`);
+                return;
+            }
+        }
+        updateQty(id, qty);
+    };
+
+    const guardedUpdateRoundItemQty = (roundId: number, itemId: number, newQty: number, productId: number, currentQty: number) => {
+        if (newQty > currentQty) {
+            const product = products.find((p: Product) => p.id === productId);
+            if (product && wouldExceedStock(product.id, product.type, product.stock_count)) {
+                toast.error(`Stock insuffisant pour ${product.name}`);
+                return;
+            }
+        }
+        handleUpdateRoundItemQty(roundId, itemId, newQty);
+    };
+
     const orderData = activeOrder ?? null;
 
     // 3a. Reset du panier UNIQUEMENT si on change réellement de table.
@@ -391,6 +459,10 @@ export default function PosContent() {
     // --- ACTIONS ---
 
     const handleProductClick = (product: Product) => {
+        if (hasInsufficientStock(product)) {
+            toast.error(`Stock insuffisant pour ${product.name}`);
+            return;
+        }
         if (product.modifiers && product.modifiers.length > 0) {
             setSelectedProductForModifiers(product);
             setIsModifierModalOpen(true);
@@ -408,6 +480,11 @@ export default function PosContent() {
 
     const handleConfirmModifiers = (selectedModifiers: CartItem['modifiers']) => {
         if (!selectedProductForModifiers) return;
+
+        if (hasInsufficientStock(selectedProductForModifiers)) {
+            toast.error(`Stock insuffisant pour ${selectedProductForModifiers.name}`);
+            return;
+        }
 
         const extraPrice = selectedModifiers.reduce((acc, curr) => acc + curr.price, 0);
         const basePrice = selectedProductForModifiers.price;
@@ -442,12 +519,44 @@ export default function PosContent() {
         const loadingToast = toast.loading("Envoi en cuisine...");
 
         try {
-            const { order, skippedKitchenItems } = await orderingApi.sendRound({
-                tableId: Number(tableId),
-                orderId: orderId ?? undefined,
-                items: sanitizedItems,
-                note: ""
-            });
+            let result;
+            try {
+                result = await orderingApi.sendRound({
+                    tableId: Number(tableId),
+                    orderId: orderId ?? undefined,
+                    items: sanitizedItems,
+                    note: ""
+                });
+            } catch (error) {
+                // Un orderId périmé (résidu d'un état persisté avant le correctif de ce bug, ou
+                // toute commande fermée entre-temps sans passer par cet écran) fait échouer
+                // resolveOrderForSendRound avec 409 (Order#assertOpen : "déjà payée"/"annulée").
+                // Plutôt que de laisser le caissier bloqué sur cette table à chaque nouvel essai,
+                // ce cas précis est un signal univoque que l'orderId local est mort : on l'écarte
+                // (sans toucher aux items, que le caissier n'a pas à ressaisir) et on retente UNE
+                // fois sans lui — le back-end repart alors sur la résolution par table, qui ouvre
+                // une commande neuve. Vérifié sur le message exact (pas juste le statut 409) :
+                // resolveOrderForSendRound renvoie aussi 409 pour "cette commande n'appartient pas
+                // à la table indiquée", un tout autre bug qu'il ne faut surtout pas masquer par un
+                // retry silencieux qui ouvrirait une commande en double. `orderId != null` exclut
+                // aussi le cas où aucun orderId n'était même envoyé (rien à blâmer côté client).
+                const conflictMessage = error instanceof AxiosError ? getErrorMessage(error, "") : "";
+                const isStaleOrderConflict =
+                    error instanceof AxiosError &&
+                    error.response?.status === 409 &&
+                    orderId != null &&
+                    (conflictMessage.includes("déjà payée") || conflictMessage.includes("est annulée"));
+                if (!isStaleOrderConflict) {
+                    throw error;
+                }
+                clearStaleOrderId(Number(tableId));
+                result = await orderingApi.sendRound({
+                    tableId: Number(tableId),
+                    items: sanitizedItems,
+                    note: ""
+                });
+            }
+            const { order, skippedKitchenItems } = result;
 
             // On écrit directement la commande retournée dans le cache plutôt que de
             // refetch ['active-order', tableId] (refreshActiveOrder) : pour une table
@@ -621,8 +730,8 @@ export default function PosContent() {
                 <CartPanel
                     tableId={tableId} orderId={orderId} orderData={orderData} items={items} total={total}
                     isSubmittingRound={isSubmittingRound} pendingRoundItemIds={pendingRoundItemIds}
-                    onUpdateRoundItemQty={handleUpdateRoundItemQty} onRemoveRoundItem={handleRemoveRoundItem}
-                    onUpdateCartItemQty={updateQty} onRemoveCartItem={removeItem} onRequestBilling={handleRequestBilling}
+                    onUpdateRoundItemQty={guardedUpdateRoundItemQty} onRemoveRoundItem={handleRemoveRoundItem}
+                    onUpdateCartItemQty={guardedUpdateCartItemQty} onRemoveCartItem={removeItem} onRequestBilling={handleRequestBilling}
                 />
             </aside>
 
@@ -632,8 +741,8 @@ export default function PosContent() {
                     <CartPanel
                         tableId={tableId} orderId={orderId} orderData={orderData} items={items} total={total}
                         isSubmittingRound={isSubmittingRound} pendingRoundItemIds={pendingRoundItemIds}
-                        onUpdateRoundItemQty={handleUpdateRoundItemQty} onRemoveRoundItem={handleRemoveRoundItem}
-                        onUpdateCartItemQty={updateQty} onRemoveCartItem={removeItem} onRequestBilling={handleRequestBilling}
+                        onUpdateRoundItemQty={guardedUpdateRoundItemQty} onRemoveRoundItem={handleRemoveRoundItem}
+                        onUpdateCartItemQty={guardedUpdateCartItemQty} onRemoveCartItem={removeItem} onRequestBilling={handleRequestBilling}
                     />
                 </SheetContent>
             </Sheet>

@@ -1,6 +1,7 @@
 import {useState} from "react";
-import {Layers, Plus, Save, X} from "lucide-react";
+import {Layers, Pencil, Plus, Save, X} from "lucide-react";
 import {Button} from "@/components/ui/button";
+import {Badge} from "@/components/ui/badge";
 import {ModifierItemForm} from "./ModifierItemForm";
 import {toast} from "sonner";
 import * as catalogApi from "../../../lib/api/catalog";
@@ -11,9 +12,20 @@ interface ModifierGroupCardProps {
     isSelected: boolean;
     onToggle: (groupId: number) => void;
     onRefresh: () => void;
+    onEditConfig: () => void;
 }
 
-export function ModifierGroupCard({ group, isSelected, onToggle, onRefresh }: ModifierGroupCardProps) {
+function selectionRuleLabel(group: Modifier) {
+    if (group.required) {
+        return group.maxSelect != null
+            ? `Obligatoire · ${group.minSelect || 1}-${group.maxSelect}`
+            : `Obligatoire · min ${group.minSelect || 1}`;
+    }
+    if (group.maxSelect != null) return `Optionnel · max ${group.maxSelect}`;
+    return "Optionnel";
+}
+
+export function ModifierGroupCard({ group, isSelected, onToggle, onRefresh, onEditConfig }: ModifierGroupCardProps) {
     const [showItemForm, setShowItemForm] = useState(false);
 // Fonction de suppression d'un item
     const handleDeleteItem = async (e: React.MouseEvent, itemId: number) => {
@@ -40,41 +52,62 @@ export function ModifierGroupCard({ group, isSelected, onToggle, onRefresh }: Mo
             {/* SECTION HAUTE : Zone cliquable pour la sélection */}
             <div
                 onClick={() => onToggle(group.id)}
-                className="flex items-center justify-between p-5 cursor-pointer select-none"
+                className="flex items-center justify-between gap-3 p-5 cursor-pointer select-none"
             >
-                <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-colors ${
+                <div className="flex items-center gap-4 min-w-0">
+                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-colors shrink-0 ${
                         isSelected ? "bg-primary text-white shadow-lg shadow-primary/20" : "bg-slate-50 text-slate-400"
                     }`}>
                         {isSelected ? <Save size={18} /> : <Layers size={18} />}
                     </div>
 
-                    <div className="flex flex-col">
-            <span className="font-black uppercase text-sm tracking-tight leading-none text-slate-900">
-              {group.name}
-            </span>
-                        <span className="text-[10px] font-bold text-slate-400 mt-1.5 flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-slate-300"></span>
-                            {group.items?.length || 0} OPTIONS DISPONIBLES
-            </span>
+                    <div className="flex flex-col gap-1.5 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-black uppercase text-sm tracking-tight leading-none text-slate-900 truncate">
+                              {group.name}
+                            </span>
+                            <Badge
+                                variant="outline"
+                                className={`text-[8px] font-black uppercase px-1.5 py-0 rounded-md border-none shrink-0 ${
+                                    group.type === "accompaniment" ? "bg-blue-500/10 text-blue-600" : "bg-amber-500/10 text-amber-600"
+                                }`}
+                            >
+                                {group.type === "accompaniment" ? "Accompagnement" : "Supplément"}
+                            </Badge>
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5 truncate">
+                            <span className="h-1.5 w-1.5 rounded-full bg-slate-300 shrink-0"></span>
+                            {group.items?.length || 0} options · {selectionRuleLabel(group)}
+                        </span>
                     </div>
                 </div>
 
-                {/* Bouton d'édition indépendant du clic de sélection */}
-                <Button
-                    size="sm"
-                    variant={showItemForm ? "default" : "secondary"}
-                    className={`h-9 px-4 rounded-xl font-black text-[10px] transition-all ${
-                        showItemForm ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
-                    onClick={(e) => {
-                        e.stopPropagation(); // Empêche de cocher/décocher le groupe
-                        setShowItemForm(!showItemForm);
-                    }}
-                >
-                    {showItemForm ? "FERMER" : "CONFIGURER"}
-                    <Plus size={14} className={`ml-2 transition-transform duration-300 ${showItemForm ? "rotate-45" : ""}`} />
-                </Button>
+                {/* Boutons d'édition indépendants du clic de sélection */}
+                <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-9 w-9 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                        onClick={(e) => { e.stopPropagation(); onEditConfig(); }}
+                        title="Configurer la règle de sélection"
+                    >
+                        <Pencil size={14} />
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant={showItemForm ? "default" : "secondary"}
+                        className={`h-9 px-4 rounded-xl font-black text-[10px] transition-all ${
+                            showItemForm ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                        onClick={(e) => {
+                            e.stopPropagation(); // Empêche de cocher/décocher le groupe
+                            setShowItemForm(!showItemForm);
+                        }}
+                    >
+                        {showItemForm ? "FERMER" : "OPTIONS"}
+                        <Plus size={14} className={`ml-2 transition-transform duration-300 ${showItemForm ? "rotate-45" : ""}`} />
+                    </Button>
+                </div>
             </div>
 
             {/* SECTION CENTRALE : Liste des badges (toujours visible) */}

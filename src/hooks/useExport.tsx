@@ -8,6 +8,8 @@ interface ExportOptions {
     title: string;
     subtitle?: string;
     columns: string[];
+    /** Optional totals block rendered under the table (e.g. "Total Entrées" / "Total Sorties"). */
+    summary?: { label: string; value: string }[];
 }
 
 /** Même couleur d'accent que PdfReportWriter côté backend (journaux comptables) — un seul
@@ -100,6 +102,30 @@ export const useExport = () => {
                 margin: { bottom: 22 },
             });
 
+            if (options.summary && options.summary.length > 0) {
+                // finalY is set by jspdf-autotable on the doc instance after its last draw —
+                // no typed export for it, hence the cast.
+                const finalY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? bodyStartY;
+                let summaryY = finalY + 10;
+                const pageHeight = doc.internal.pageSize.getHeight();
+                if (summaryY + options.summary.length * 6 > pageHeight - 20) {
+                    doc.addPage();
+                    summaryY = 20;
+                }
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(9);
+                doc.setTextColor(20, 20, 20);
+                for (const line of options.summary) {
+                    doc.text(`${line.label} :`, pageWidth - 90, summaryY);
+                    doc.text(line.value, pageWidth - 14, summaryY, { align: 'right' });
+                    summaryY += 6;
+                }
+            }
+
+            // Doit courir APRÈS un éventuel doc.addPage() ci-dessus pour le résumé : appelé plus
+            // tôt (juste après autoTable), le total substitué sur les pieds de page déjà dessinés
+            // ne comptait pas cette page supplémentaire — chaque "Page X / N" affichait alors un N
+            // trop petit d'une unité dès que le résumé débordait sur une nouvelle page.
             if (typeof doc.putTotalPages === 'function') {
                 doc.putTotalPages(totalPagesPlaceholder);
             }

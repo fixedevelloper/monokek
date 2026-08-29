@@ -37,8 +37,10 @@ function mapFormValuesToCreateRequest(data: PrinterFormValues): CreatePrinterReq
     };
 }
 
-export async function listPrinters(): Promise<Printer[]> {
-    const response = await api.get('/api/admin/settings/printers');
+/** `branchId` scopes the list to one branch — omitted, an unscoped admin gets every branch's
+ * printers, which is never what a "is there a printer here" check wants. */
+export async function listPrinters(branchId?: string | number): Promise<Printer[]> {
+    const response = await api.get('/api/admin/settings/printers', { params: branchId ? { branchId } : undefined });
     return unwrapRaw<PrinterDto[]>(response).map(mapPrinterDtoToPrinter);
 }
 

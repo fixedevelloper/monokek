@@ -60,6 +60,7 @@ export function mapOrderDtoToOrder(dto: OrderDto): Order {
         table: dto.table ? { id: dto.table.id, name: dto.table.name, status: dto.table.status } : undefined,
         waiter: dto.waiter ?? undefined,
         cashier: dto.cashier ?? undefined,
+        customer: dto.customer ?? null,
         note: dto.note,
         created_at: dto.time,
         date: dto.date,
@@ -148,6 +149,13 @@ export async function listOrdersPos(params: { search?: string; date?: string; st
 
 export async function historyPos(): Promise<Order[]> {
     const response = await api.get('/api/pos/orders/history');
+    return unwrap<OrderDto[]>(response).map(mapOrderDtoToOrder);
+}
+
+/** Traceability view backing the "Commandes" button on a coupon's admin card — every order that
+ * coupon was applied to, most recent first. See OrderController#ordersByCoupon. */
+export async function getOrdersByCoupon(couponId: number): Promise<Order[]> {
+    const response = await api.get(`/api/admin/coupons/${couponId}/orders`);
     return unwrap<OrderDto[]>(response).map(mapOrderDtoToOrder);
 }
 

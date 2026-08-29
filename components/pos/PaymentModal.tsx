@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,8 +43,9 @@ const NUMPAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', 'ba
 
 export default function PaymentModal() {
   const { isPaymentModalOpen, closePayment, selectedSaleForPayment } = useUIStore();
-  const { total: cartTotal, clearCart, items: cartItems } = useCartStore();
+  const { total: cartTotal, clearCart, items: cartItems, resetAfterPayment } = useCartStore();
   const { processPrintJob } = usePrint();
+  const queryClient = useQueryClient();
   
   const [amountReceived, setAmountReceived] = useState<string>("0");
   const [selectedMethod, setSelectedMethod] = useState<number>(1);
@@ -235,9 +236,27 @@ const handleFinalize = async () => {
 */
 
     toast.success(message || "Paiement validé !");
-    
+
+    // Le paiement décrémente le stock des produits storable côté serveur
+    // (ProductStockDeductionListener) — sans cette invalidation, la liste ['products'] (POS
+    // grid, hérite du staleTime global 5 min de QueryProvider) reste périmée jusqu'à 5 minutes,
+    // et le garde-fou "stock insuffisant" de PosContent.tsx continue de lire l'ancien stock,
+    // laissant vendre un produit déjà épuisé.
+    queryClient.invalidateQueries({ queryKey: ['products'] });
+
     // 3. Reset de l'interface
-    if (!selectedSaleForPayment) {
+    // Toujours basé sur l'id de la commande qui vient d'être payée, pas sur
+    // `selectedSaleForPayment` : sur le vrai écran d'encaissement (pos/sales/order/page.tsx),
+    // une vente est toujours passée à openPayment(), donc selectedSaleForPayment est non-null
+    // et clearCart() ne se déclenchait jamais — un orderId périmé restait dans le store et
+    // était renvoyé tel quel au round suivant sur la même table, que le serveur rejetait avec
+    // "commande déjà payée" (Order#assertOpen). resetAfterPayment corrige ça — comparé à
+    // l'orderId exact (pas juste le tableId) : une table virtuelle/comptoir est réutilisée par
+    // des commandes sans rapport tout au long de la journée, donc ne comparer que le tableId
+    // aurait pu effacer un round en cours de composition (encore non envoyé) pour cette même
+    // table à cause du paiement d'une tout autre commande plus ancienne.
+    resetAfterPayment(activeOrder?.id ?? null);
+    if (!activeOrder?.id && !selectedSaleForPayment) {
         clearCart();
     }
     closePayment();
