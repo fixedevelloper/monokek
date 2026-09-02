@@ -304,6 +304,10 @@ export default function PosContent() {
     const [searchQuery, setSearchQuery] = useState("");
     const [activeCategory, setActiveCategory] = useState("Toutes");
     const [isCartOpen, setIsCartOpen] = useState(false);
+    // La barre de recherche du header est masquée sous `lg` (voir `hidden lg:block`
+    // plus bas) : sur tablette/téléphone, ce bouton l'affiche à la place dans une
+    // ligne dédiée sous le header.
+    const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
     const [selectedProductForModifiers, setSelectedProductForModifiers] = useState<Product | null>(null);
     const [isModifierModalOpen, setIsModifierModalOpen] = useState(false);
     // Empêche le double-clic / double-tap d'envoyer deux fois le même round
@@ -652,6 +656,15 @@ export default function PosContent() {
                         />
                     </div>
 
+                    <Button
+                        variant="ghost"
+                        onClick={() => setIsMobileSearchOpen((prev) => !prev)}
+                        className="lg:hidden h-14 w-14 rounded-2xl bg-slate-100 shrink-0"
+                        aria-label="Rechercher"
+                    >
+                        <Search size={22} />
+                    </Button>
+
                     <Button variant="ghost" onClick={() => setIsCartOpen(true)} className="md:hidden relative h-14 w-14 rounded-2xl bg-slate-100">
                         <ShoppingCart size={24} />
                         {items?.length > 0 && (
@@ -661,6 +674,21 @@ export default function PosContent() {
                         )}
                     </Button>
                 </header>
+
+                {isMobileSearchOpen && (
+                    <div className="px-4 pb-4 lg:hidden">
+                        <div className="relative">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                            <Input
+                                autoFocus
+                                placeholder="Rechercher..."
+                                className="pl-12 h-14 bg-slate-100 rounded-[1.2rem] border-none font-bold"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                )}
 
                 <div className="px-6 py-5 bg-white dark:bg-slate-900 border-b flex gap-3 overflow-x-auto no-scrollbar scroll-smooth min-h-[80px] items-center">
                     {isLoadingProducts ? (
