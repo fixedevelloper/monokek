@@ -22,6 +22,8 @@ import { list_thermal_printers, ENCODE, print_thermal_printer, type PrintJobRequ
 import {getLocalSettings, initStore, saveLocalSettings} from "../../../lib/storage";
 import {PrinterDialog} from "./PrinterDialogAdd";
 import {StationDialog} from "./StationDialog";
+import {HubLinksCard} from "./HubLinksCard";
+import {WarehouseCard} from "./WarehouseCard";
 import {RegisterDialog} from "./RegisterDialog";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {usePrint} from "../../../hooks/use-print";
@@ -524,6 +526,10 @@ export default function SettingsPage() {
                 )}
               </CardContent>
             </Card>
+
+            <HubLinksCard />
+
+            <WarehouseCard />
           </TabsContent>
 
           {/* --- ONGLET CAISSES --- */}

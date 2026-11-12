@@ -18,6 +18,9 @@ export interface KitchenTicket {
   id: number;
   reference: string;
   table: string;
+  /** Cuisine centrale : succursale d'où vient la commande. Absent pour les commandes de la cuisine elle-même. */
+  originBranchId?: number | null;
+  originBranchName?: string | null;
   status: 'pending' | 'preparing' | 'ready';
   createdAt: string;
   items: Array<{

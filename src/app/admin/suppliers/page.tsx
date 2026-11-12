@@ -24,6 +24,7 @@ import {toast} from "sonner";
 import * as suppliersApi from "@/src/lib/api/suppliers";
 import {SupplierDto} from "@/src/lib/api/types/suppliers";
 import {getErrorMessage} from "@/src/lib/errors";
+import {StockNav} from "../transfers/StockNav";
 import {AddSupplierModal} from "./AddSupplierModal";
 import {EditSupplierModal} from "./EditSupplierModal";
 import {SupplierPurchasesModal} from "./SupplierPurchasesModal";
@@ -87,6 +88,7 @@ export default function AdminSuppliersPage() {
                         </p>
                     </div>
                 </div>
+                <div className="mt-6"><StockNav /></div>
             </header>
 
             <main className="max-w-6xl mx-auto space-y-6">

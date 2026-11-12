@@ -12,7 +12,7 @@ import {toast} from "sonner";
 import * as catalogApi from "@/src/lib/api/catalog";
 import {Branch} from "@/src/types/company";
 import {getErrorMessage} from "@/src/lib/errors";
-import {KitchenStation, STATION_TYPE_LABELS} from "@/src/types/kitchenStation";
+import {KitchenStation, stationLabel} from "@/src/types/kitchenStation";
 
 interface AddCategoryModalProps {
     onCategoryAdded: () => void;
@@ -117,7 +117,7 @@ export function AddCategoryModal({ onCategoryAdded, branches, kitchenStations }:
                             <SelectContent className="rounded-2xl border-none shadow-xl">
                                 {kitchenStations.map((station) => (
                                     <SelectItem key={station.id} value={String(station.id)} className="font-bold">
-                                        {station.name} ({STATION_TYPE_LABELS[station.type]})
+                                        {stationLabel(station, Number(watch("branchId")))}
                                     </SelectItem>
                                 ))}
                             </SelectContent>

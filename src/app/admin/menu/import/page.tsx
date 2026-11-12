@@ -10,21 +10,60 @@ import Papa from "papaparse"; // Import pour le CSV
 import {useRouter} from "next/navigation";
 import {useQueryClient} from "@tanstack/react-query";
 import {getErrorMessage} from "@/src/lib/errors";
+import * as storageApi from "@/src/lib/api/storage";
+import {ArchiveRow, parseProductsArchive} from "@/src/lib/productArchive";
 
-interface ImportRow {
-    name?: string;
-    price?: string;
-    category?: string;
-}
+type ImportRow = ArchiveRow;
+
+const norm = (v?: string) => (v ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+const rowKey = (r: ImportRow) => `${norm(r.category)}|${norm(r.name)}`;
 
 export default function ImportProductsPage() {
     const [fileData, setFileData] = useState<ImportRow[]>([]);
     const [isUploading, setIsUploading] = useState(false);
+    const [progress, setProgress] = useState<string | null>(null);
+    const [existing, setExisting] = useState<Set<string>>(new Set());
+    const [images, setImages] = useState<Map<string, Blob>>(new Map());
     const router = useRouter();
     const queryClient = useQueryClient();
+    // Doublon = même catégorie + même nom (insensible à la casse) qu'un produit existant de la succursale
+    // ciblée, ou qu'une ligne précédente du fichier. Le serveur applique la même règle en filet de sécurité.
+    const duplicates = React.useMemo(() => {
+        const seen = new Set<string>();
+        return fileData.map((row) => {
+            const key = rowKey(row);
+            const dup = existing.has(key) || seen.has(key);
+            seen.add(key);
+            return dup;
+        });
+    }, [fileData, existing]);
+    const newCount = duplicates.filter((d) => !d).length;
+
+    const loadExisting = () => {
+        const branch = Number(new URLSearchParams(window.location.search).get("branch")) || null;
+        catalogApi.listProductsAdmin()
+            .then((all) => setExisting(new Set(all
+                .filter((p) => branch === null || p.category.branch_id === branch)
+                .map((p) => rowKey({category: p.category.name, name: p.name})))))
+            .catch(() => setExisting(new Set())); // pas bloquant : le serveur ignore aussi les doublons
+    };
+
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
+
+        if (file.name.toLowerCase().endsWith(".zip")) {
+            parseProductsArchive(file)
+                .then(({rows, images: imgs}) => {
+                    if (rows.length === 0) return toast.error("Le fichier semble vide.");
+                    loadExisting();
+                    setFileData(rows);
+                    setImages(imgs);
+                    toast.success(`${rows.length} produits et ${imgs.size} images détectés.`);
+                })
+                .catch((e) => toast.error(getErrorMessage(e, "Archive illisible.")));
+            return;
+        }
 
         // Validation du type de fichier
         if (file.type !== "text/csv" && !file.name.endsWith(".csv")) {
@@ -37,6 +76,7 @@ export default function ImportProductsPage() {
             complete: (results) => {
                 // On valide que le CSV a les bonnes colonnes (name, price, category)
                 if (results.data.length > 0) {
+                    loadExisting();
                     setFileData(results.data);
                     toast.success(`${results.data.length} produits détectés.`);
                 } else {
@@ -50,20 +90,43 @@ export default function ImportProductsPage() {
     };
 
     const confirmImport = async () => {
-        if (fileData.length === 0) return;
+        const rowsToImport = fileData.filter((_, i) => !duplicates[i]);
+        if (rowsToImport.length === 0) return toast.info("Tous ces produits existent déjà : rien à importer.");
 
         setIsUploading(true);
         try {
+            // Images du zip → MinIO d'abord (4 en parallèle) ; un échec d'envoi n'annule pas l'import.
+            const urls = new Map<string, string>();
+            const wanted = new Set(rowsToImport.map((r) => (r.image_file ?? '').trim().replace(/\\/g, '/')));
+            const paths = [...images.keys()].filter((p) => wanted.has(p));
+            let done = 0, failed = 0, next = 0;
+            await Promise.all(Array.from({length: Math.min(4, paths.length)}, async () => {
+                while (next < paths.length) {
+                    const path = paths[next++];
+                    try {
+                        const blob = images.get(path)!;
+                        const file = new File([blob], path.split("/").pop() ?? "image", {type: blob.type});
+                        urls.set(path, await storageApi.uploadImage(file, "products"));
+                    } catch {
+                        failed++;
+                    }
+                    setProgress(`Images ${++done}/${paths.length}`);
+                }
+            }));
+            setProgress("Création des produits…");
             await catalogApi.bulkImportProducts({
                 // TODO: pas de sélecteur de succursale dans cette UI — branche par défaut,
                 // comme le hardcodage Branch::first() de l'ancienne version Laravel.
-                branchId: 1,
-                items: fileData.map((row) => ({
+                branchId: Number(new URLSearchParams(window.location.search).get("branch")) || 1,
+                items: rowsToImport.map((row) => ({
                     name: String(row.name ?? ''),
                     price: parseFloat(row.price ?? '') || 0,
                     category: String(row.category ?? ''),
+                    description: row.description?.trim() || undefined,
+                    image: urls.get((row.image_file ?? '').trim().replace(/\\/g, '/')),
                 })),
             });
+            if (failed > 0) toast.warning(`${failed} image(s) n'ont pas pu être envoyées.`);
             toast.success("Importation réussie !");
             queryClient.invalidateQueries({ queryKey: ["products"] });
             router.push("/admin/menu");
@@ -71,6 +134,7 @@ export default function ImportProductsPage() {
             toast.error(getErrorMessage(error, "Erreur lors de l'importation finale."));
         } finally {
             setIsUploading(false);
+            setProgress(null);
         }
     };
 
@@ -88,7 +152,7 @@ export default function ImportProductsPage() {
                 </div>
 
                 {fileData.length > 0 && (
-                    <Button variant="destructive" size="sm" onClick={() => setFileData([])} className="rounded-xl gap-2">
+                    <Button variant="destructive" size="sm" onClick={() => { setFileData([]); setImages(new Map()); }} className="rounded-xl gap-2">
                         <Trash2 size={16} /> Recommencer
                     </Button>
                 )}
@@ -96,15 +160,15 @@ export default function ImportProductsPage() {
 
             {fileData.length === 0 ? (
                 <div className="group relative border-4 border-dashed border-slate-200 rounded-[3rem] p-20 text-center bg-white hover:border-primary/50 transition-colors">
-                    <input type="file" onChange={handleFileUpload} id="csv-upload" className="hidden" accept=".csv" />
+                    <input type="file" onChange={handleFileUpload} id="csv-upload" className="hidden" accept=".csv,.zip" />
                     <label htmlFor="csv-upload" className="cursor-pointer flex flex-col items-center">
                         <div className="h-20 w-20 bg-slate-50 rounded-3xl flex items-center justify-center text-slate-300 group-hover:text-primary transition-colors mb-6">
                             <FileUp size={40} />
                         </div>
                         <p className="font-black uppercase text-slate-400 tracking-widest text-sm">
-                            Cliquez pour uploader un fichier CSV
+                            Cliquez pour uploader un fichier CSV ou ZIP (avec images)
                         </p>
-                        <p className="text-slate-300 text-xs mt-2 font-bold">Colonnes requises : name, price, category</p>
+                        <p className="text-slate-300 text-xs mt-2 font-bold">Colonnes : name, price, category (+ description, image_file avec un zip)</p>
                     </label>
                 </div>
             ) : (
@@ -113,7 +177,7 @@ export default function ImportProductsPage() {
                     <div className="flex gap-4">
                         <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex items-center gap-3 flex-1">
                             <CheckCircle2 className="text-emerald-500" />
-                            <span className="text-sm font-bold text-emerald-800">{fileData.length} articles prêts à l'importation</span>
+                            <span className="text-sm font-bold text-emerald-800">{newCount} articles prêts à l'importation{newCount < fileData.length ? ` · ${fileData.length - newCount} doublon(s) ignoré(s)` : ""}{images.size > 0 ? ` (${images.size} images)` : ""}</span>
                         </div>
                     </div>
 
@@ -129,8 +193,8 @@ export default function ImportProductsPage() {
                             </thead>
                             <tbody className="divide-y divide-slate-50">
                             {fileData.map((row, i) => (
-                                <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="p-5 text-sm font-black uppercase italic tracking-tight">{row.name}</td>
+                                <tr key={i} className={`hover:bg-slate-50/50 transition-colors ${duplicates[i] ? "opacity-40" : ""}`}>
+                                    <td className="p-5 text-sm font-black uppercase italic tracking-tight">{row.name}{duplicates[i] && <span className="ml-2 text-[10px] not-italic font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Déjà existant</span>}</td>
                                     <td className="p-5 text-center text-xs font-bold">
                                         <span className="bg-slate-100 px-3 py-1 rounded-full text-slate-500 uppercase">{row.category}</span>
                                     </td>
@@ -146,10 +210,10 @@ export default function ImportProductsPage() {
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Vérifiez bien les données avant de valider</p>
                         <Button
                             onClick={confirmImport}
-                            disabled={isUploading}
+                            disabled={isUploading || newCount === 0}
                             className="h-16 px-12 rounded-[2rem] font-black text-lg italic shadow-xl shadow-primary/20"
                         >
-                            {isUploading ? "IMPORTATION EN COURS..." : "LANCER L'IMPORTATION"}
+                            {isUploading ? (progress ?? "IMPORTATION EN COURS...") : "LANCER L'IMPORTATION"}
                         </Button>
                     </div>
                 </div>

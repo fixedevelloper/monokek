@@ -20,7 +20,8 @@ import {
   Truck,
   UserCog,
   Users,
-  Utensils
+  Utensils,
+  ArrowLeftRight,
 } from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {useRouter} from 'next/navigation';
@@ -118,6 +119,14 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: Package, // Utilise 'Package' ou 'Boxes' pour le stock physique
     href: "/admin/stock",
     color: "bg-red-700",
+    permission: PERMISSIONS.MANAGE_STOCK,
+  },
+  {
+    title: "Transferts de stock",
+    description: "Approvisionner les succursales depuis l'entrepôt",
+    icon: ArrowLeftRight,
+    href: "/admin/transfers",
+    color: "bg-indigo-600",
     permission: PERMISSIONS.MANAGE_STOCK,
   },
   {

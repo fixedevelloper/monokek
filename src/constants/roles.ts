@@ -8,12 +8,20 @@ export const ROLES = {
   WAITER: 'waiter',
   KITCHEN: 'kitchen',
   MANAGER: 'manager',
+  /** Magasinier de l'entrepôt général : stock, fournisseurs, achats et transferts uniquement. */
+  WAREHOUSE: 'warehouse',
 } as const;
 
 export type AppRole = typeof ROLES[keyof typeof ROLES];
 
 /** Roles allowed into `/admin/**` — mirrors the backend's own `hasAnyRole("ADMIN", "MANAGER")` rule for `/api/admin/**`. */
 export const ADMIN_ROLES: AppRole[] = [ROLES.ADMIN, ROLES.MANAGER];
+
+/** Rôles qui entrent dans `/admin/**` : les administrateurs, et le magasinier — mais celui-ci seulement dans {@link WAREHOUSE_PATHS}. */
+export const ADMIN_AREA_ROLES: AppRole[] = [ROLES.ADMIN, ROLES.MANAGER, ROLES.WAREHOUSE];
+
+/** Les seules pages d'administration que le magasinier atteint (le serveur lui refuse de toute façon le reste). */
+export const WAREHOUSE_PATHS = ['/admin/transfers', '/admin/stock', '/admin/suppliers'];
 
 /**
  * Where a role lands after login, and where `RouteGuard` sends a user caught
@@ -26,6 +34,8 @@ export function roleHomeRoute(role?: AppRole | string | null): string {
     case ROLES.ADMIN:
     case ROLES.MANAGER:
       return '/admin';
+    case ROLES.WAREHOUSE:
+      return '/admin/transfers';
     case ROLES.KITCHEN:
       return '/kitchen/tickets';
     case ROLES.CASHIER:

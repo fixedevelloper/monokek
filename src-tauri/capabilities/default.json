@@ -16,6 +16,9 @@
     "thermal-printer:allow-list-thermal-printers",
     "thermal-printer:allow-print-thermal-printer",
     "thermal-printer:allow-test-thermal-printer",
+    "dialog:default",
+    "fs:allow-write-file",
+    "fs:allow-read-file",
     "log:default"
   ]
 }

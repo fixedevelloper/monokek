@@ -12,11 +12,13 @@ import {toast} from "sonner";
 import * as catalogApi from "@/src/lib/api/catalog";
 import {Category} from "@/src/types/menus";
 import {getErrorMessage} from "@/src/lib/errors";
-import {KitchenStation, STATION_TYPE_LABELS} from "@/src/types/kitchenStation";
+import {KitchenStation, stationLabel} from "@/src/types/kitchenStation";
 
 interface EditCategoryModalProps {
     category: Category;
     kitchenStations: KitchenStation[];
+    /** Succursale de la catégorie : sert à signaler les stations d'une cuisine centrale. */
+    branchId: number;
     onCategoryUpdated: () => void;
 }
 
@@ -27,7 +29,7 @@ interface CategoryFormValues {
 
 const NO_STATION = "none";
 
-export function EditCategoryModal({ category, kitchenStations, onCategoryUpdated }: EditCategoryModalProps) {
+export function EditCategoryModal({ category, kitchenStations, branchId, onCategoryUpdated }: EditCategoryModalProps) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const { register, handleSubmit, watch, setValue } = useForm<CategoryFormValues>({
@@ -46,6 +48,8 @@ export function EditCategoryModal({ category, kitchenStations, onCategoryUpdated
                 // Voir AddCategoryModal : sans station cuisine, les produits de cette catégorie
                 // ne génèrent jamais de ticket en cuisine/comptoir.
                 kitchenStationId: data.kitchenStationId === NO_STATION ? undefined : Number(data.kitchenStationId),
+                // Propriétaire : c'est la station de la succursale de l'onglet, pas forcément celle d'origine de la catégorie.
+                branchId,
             });
 
             toast.success(`Catégorie "${data.name}" mise à jour !`);
@@ -102,7 +106,7 @@ export function EditCategoryModal({ category, kitchenStations, onCategoryUpdated
                                 </SelectItem>
                                 {kitchenStations.map((station) => (
                                     <SelectItem key={station.id} value={String(station.id)} className="font-bold">
-                                        {station.name} ({STATION_TYPE_LABELS[station.type]})
+                                        {stationLabel(station, branchId)}
                                     </SelectItem>
                                 ))}
                             </SelectContent>

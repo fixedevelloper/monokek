@@ -27,6 +27,8 @@ serde_json = "1"
 tauri-plugin-thermal-printer = "2.0.0"
 tauri-plugin-log = "2"
 log = "0.4"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
 #tauri-plugin-printer-v2 = "0.2.4"
 
 

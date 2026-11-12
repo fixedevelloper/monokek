@@ -55,6 +55,8 @@ export function mapCategoryDtoToCategory(dto: CategoryDto): Category {
         id: dto.id,
         name: dto.name,
         branch_id: dto.branchId,
+        branch_ids: dto.branchSettings?.map((s) => s.branchId) ?? [dto.branchId],
+        branch_stations: Object.fromEntries((dto.branchSettings ?? []).map((s) => [s.branchId, s.kitchenStationId])),
         kitchen_station_id: dto.kitchenStationId,
         slug: dto.slug,
         description: dto.description ?? undefined,
@@ -102,13 +104,15 @@ export async function deleteProduct(id: number): Promise<void> {
 }
 
 /** The only way left to move a product's stock — admin-only, always traced (see ProductStockMovementDto). */
-export async function adjustProductStock(productId: number, payload: AdjustProductStockRequestDto): Promise<Product> {
-    const response = await api.post(`/api/admin/products/${productId}/stock/adjust`, payload);
+export async function adjustProductStock(productId: number, payload: AdjustProductStockRequestDto, locationId?: number): Promise<Product> {
+    // locationId : le lieu de stock concerné. Un compte de succursale agit sur le sien ; le propriétaire doit le préciser dès que le produit
+    // est vendu dans plusieurs succursales (le serveur répond 400 sinon).
+    const response = await api.post(`/api/admin/products/${productId}/stock/adjust`, payload, { params: { locationId } });
     return mapProductDtoToProduct(unwrapRaw(response));
 }
 
-export async function listProductStockMovements(productId: number): Promise<ProductStockMovementDto[]> {
-    const response = await api.get(`/api/admin/products/${productId}/stock/movements`);
+export async function listProductStockMovements(productId: number, locationId?: number): Promise<ProductStockMovementDto[]> {
+    const response = await api.get(`/api/admin/products/${productId}/stock/movements`, { params: { locationId } });
     return unwrapRaw<ProductStockMovementDto[]>(response);
 }
 

@@ -56,6 +56,10 @@ export interface Category {
     id: number | null;
     name: string;
     branch_id: number;
+    /** Succursales qui utilisent la catégorie (la sienne seule tant qu'elle n'est pas partagée). */
+    branch_ids?: number[];
+    /** Station de cuisine de CHAQUE succursale qui utilise la catégorie. */
+    branch_stations?: Record<number, number | null>;
     kitchen_station_id: number | null;
     slug: string;
     description?: string;

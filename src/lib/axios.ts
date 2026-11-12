@@ -80,13 +80,24 @@ export function invalidateBackendIpCache() {
  * besoin de recalculer cette valeur lui-même plutôt que de lire `api.defaults.baseURL`
  * (qui, lui, ne reflète jamais l'IP résolue dynamiquement).
  */
+/**
+ * Adresse saisie "IP:port" sans schéma -> URL complète. Un http:// ou https:// saisi est conservé.
+ * Sans schéma : https pour les ports HTTPS de Caddy (443, 8443), http sinon (port 8090 = HTTP local).
+ */
+export function withScheme(address: string): string {
+    const clean = address.trim().replace(/\/+$/, "");
+    if (/^https?:\/\//.test(clean)) return clean;
+    const port = clean.match(/:(\d+)$/)?.[1];
+    return `${port === "443" || port === "8443" ? "https" : "http"}://${clean}`;
+}
+
 async function resolveApiBaseUrl(): Promise<string> {
     const savedIp = typeof window !== "undefined" ? await resolveBackendIp() : null;
     if (!savedIp) {
         return api.defaults.baseURL as string;
     }
     const cleanIp = savedIp.trim().replace(/\/+$/, "");
-    const baseUrl = cleanIp.startsWith("https") ? cleanIp : `http://${cleanIp}`;
+    const baseUrl = withScheme(cleanIp);
     return `${baseUrl}/`;
 }
 
@@ -101,7 +112,9 @@ api.interceptors.request.use(
 
         // Gestion du Token d'authentification
         const token = useAuthStore.getState().token;
-        if (token && config.headers) {
+        // Jamais de Bearer sur /api/login : le filtre resource-server valide un token expiré même sur une
+        // route permitAll et répond 401 — après une longue veille, impossible alors de se reconnecter.
+        if (token && config.headers && !config.url?.includes('/api/login')) {
             config.headers.Authorization = `Bearer ${token}`;
         }
 
@@ -147,15 +160,26 @@ async function refreshAccessToken(): Promise<string> {
         // /oauth2/token s'authentifie en Basic avec les identifiants du client POS)
         // ni son intercepteur de réponse (qui rappellerait ce même refresh en boucle
         // sur un 401), mais on a quand même besoin de la même baseURL résolue.
-        const response = await axios.post(
-            '/oauth2/token',
-            body.toString(),
-            {
-                baseURL: await resolveApiBaseUrl(),
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                auth: { username: POS_CLIENT_ID, password: POS_CLIENT_SECRET },
+        let response;
+        try {
+            response = await axios.post(
+                '/oauth2/token',
+                body.toString(),
+                {
+                    baseURL: await resolveApiBaseUrl(),
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    auth: { username: POS_CLIENT_ID, password: POS_CLIENT_SECRET },
+                }
+            );
+        } catch (e) {
+            // Le refresh_token a été tourné entre-temps (autre onglet, re-login) : la session est vivante,
+            // on réutilise le jeton stocké au lieu de conclure qu'elle est morte.
+            const { token, refreshToken } = useAuthStore.getState();
+            if (oauthError(e) === 'invalid_grant' && token && refreshToken && refreshToken !== currentRefreshToken) {
+                return token;
             }
-        );
+            throw e;
+        }
 
         const { access_token, refresh_token, expires_in } = response.data;
         useAuthStore.getState().setTokens(access_token, refresh_token ?? currentRefreshToken, expires_in);
@@ -167,6 +191,11 @@ async function refreshAccessToken(): Promise<string> {
     } finally {
         refreshPromise = null;
     }
+}
+
+/** Code d'erreur OAuth2 (`invalid_grant`, `invalid_client`...) d'une réponse de /oauth2/token. */
+function oauthError(e: unknown): string | undefined {
+    return (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
 }
 
 function forceLogout() {
@@ -201,9 +230,15 @@ api.interceptors.response.use(
             let newToken: string;
             try {
                 newToken = await refreshAccessToken();
-            } catch {
-                // Le refresh_token lui-même est invalide/expiré/révoqué — là, vraie session finie.
-                forceLogout();
+            } catch (refreshError) {
+                // Déconnexion seulement si le serveur a REFUSÉ le refresh_token (invalid_grant : invalide,
+                // expiré, révoqué, déjà tourné). Sans réponse (réseau pas encore revenu après la veille,
+                // timeout), la session est conservée : la prochaine requête retentera.
+                // Seul `invalid_grant` prouve que la session est morte : un `invalid_client` (secret OAuth du
+                // build absent/erroné, 401) est un problème de configuration, pas une raison de déconnecter.
+                if (oauthError(refreshError) === 'invalid_grant' || (refreshError as Error)?.message === 'Aucun refresh token disponible.') {
+                    forceLogout();
+                }
                 return Promise.reject(error);
             }
 

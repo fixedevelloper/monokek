@@ -46,6 +46,8 @@ export interface CategoryDto {
     description: string | null;
     icon: string | null;
     active: boolean;
+    /** Chaque succursale qui utilise la catégorie, avec SA station de cuisine. */
+    branchSettings?: { branchId: number; kitchenStationId: number | null; active: boolean }[];
 }
 
 export interface CreateCategoryRequestDto {
@@ -62,6 +64,8 @@ export interface UpdateCategoryRequestDto {
     icon?: string;
     kitchenStationId?: number;
     active?: boolean;
+    /** Propriétaire : succursale dont on change la station (défaut : la succursale d'origine de la catégorie). */
+    branchId?: number;
 }
 
 export interface CreateProductRequestDto {
@@ -119,6 +123,8 @@ export interface BulkImportLineDto {
     name: string;
     price: number;
     category: string;
+    description?: string;
+    image?: string;
 }
 
 export interface BulkImportRequestDto {

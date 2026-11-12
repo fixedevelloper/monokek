@@ -18,6 +18,8 @@ import { useNotifications } from "@/src/providers/NotificationsProvider";
 
 // On définit l'interface pour correspondre à notre nouveau Resource Laravel
 interface KitchenTicket {
+    /** Cuisine centrale : succursale d'origine, absente pour les commandes de la cuisine elle-même. */
+    originBranchName?: string | null;
     id: number;
     reference: string;
     table: string;
@@ -73,7 +75,13 @@ export default function KitchenTicketsContent() {
             toast.info(`Nouveau ticket : Table ${payload?.tableName || 'N/A'}`);
         });
 
-        return off;
+        // Un autre écran de la même cuisine a fait avancer un ticket : rafraîchir sans bruit ni toast.
+        const offUpdated = on('ticket.updated', (payload) => {
+            if (String(payload?.stationId) !== String(stationId)) return;
+            queryClient.invalidateQueries({ queryKey: ticketsQueryKey });
+        });
+
+        return () => { off(); offUpdated(); };
     }, [on, stationId]);
 
     // 3. Mise à jour du statut
@@ -174,6 +182,9 @@ export default function KitchenTicketsContent() {
                                     </div>
                                     <h3 className="font-black text-3xl italic tracking-tighter leading-none">{ticket.table}</h3>
                                     <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mt-2">REF: {ticket.reference}</p>
+                                    {ticket.originBranchName && (
+                                        <p className="text-[11px] font-black uppercase tracking-[0.15em] text-primary mt-2">{ticket.originBranchName}</p>
+                                    )}
                                 </div>
                                 <Badge variant="outline" className="rounded-xl font-black border-2 px-3 py-1 bg-white">
                                     <Timer size={12} className="mr-2 text-primary" /> {ticket.createdAt}

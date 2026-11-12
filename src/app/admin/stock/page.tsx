@@ -10,6 +10,10 @@ import {AddIngredientModal} from './AddIngredientModal';
 import {cn} from '@/src/lib/utils';
 import {AdjustStockModal} from './AdjustStockModal';
 import {Ingredient} from '@/src/types/stock';
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
+import {StockNav} from "../transfers/StockNav";
+import {useStockScope} from "../transfers/useStockScope";
+import {ProductStockPanel} from "./ProductStockPanel";
 
 export default function StockPage() {
   const { ingredients, isLoading, fetchIngredients, fetchUnits } = useStockStore();
@@ -18,6 +22,8 @@ export default function StockPage() {
   const [selectedItem, setSelectedItem] = useState<Ingredient | null>(null);
   const [adjustType, setAdjustType] = useState<'in' | 'out'>('in');
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+  // Ingrédients : un seul stock, le stock CENTRAL (entrepôt). Un compte de succursale le consulte sans pouvoir le modifier.
+  const { scope } = useStockScope();
   useEffect(() => {
     fetchIngredients();
     fetchUnits();
@@ -58,6 +64,15 @@ export default function StockPage() {
         </Button>
       </div>
 
+      <StockNav />
+
+      <Tabs defaultValue="ingredients" className="space-y-6">
+        <TabsList className="rounded-full">
+          <TabsTrigger value="ingredients" className="rounded-full text-[11px] font-black uppercase">Ingrédients · stock central</TabsTrigger>
+          <TabsTrigger value="products" className="rounded-full text-[11px] font-black uppercase">Produits · par lieu</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="ingredients" className="space-y-6">
       <div className="bg-white p-4 rounded-[2rem] shadow-sm border flex gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -80,10 +95,18 @@ export default function StockPage() {
               key={item.id}
               item={item}
               onAdjust={handleOpenAdjust}
+              readOnly={scope === "branch"}
             />
           ))}
         </div>
       )}
+
+        </TabsContent>
+
+        <TabsContent value="products">
+          <ProductStockPanel />
+        </TabsContent>
+      </Tabs>
 
       <AddIngredientModal open={isAddModalOpen} onOpenChange={setIsAddModalOpen} />
       <AdjustStockModal
@@ -96,7 +119,7 @@ export default function StockPage() {
   );
 }
 
-function IngredientCard({ item, onAdjust }: { item: Ingredient, onAdjust: (item: Ingredient, type: 'in' | 'out') => void }) {
+function IngredientCard({ item, onAdjust, readOnly = false }: { item: Ingredient, onAdjust: (item: Ingredient, type: 'in' | 'out') => void, readOnly?: boolean }) {
   const router = useRouter();
   const isLowStock = item.stock <= item.alert_qty;
 
@@ -153,20 +176,20 @@ function IngredientCard({ item, onAdjust }: { item: Ingredient, onAdjust: (item:
       </div>
 
       {/* ZONE D'ACTIONS */}
-      <div className="grid grid-cols-3 gap-2">
-        <Button
+      <div className={cn("grid gap-2", readOnly ? "grid-cols-1" : "grid-cols-3")}>
+        {!readOnly && <Button
           onClick={() => onAdjust(item, 'in')}
           className="rounded-2xl h-12 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white border-none transition-all font-black text-xs"
         >
           <Plus size={18} strokeWidth={3} />
-        </Button>
+        </Button>}
 
-        <Button
+        {!readOnly && <Button
           onClick={() => onAdjust(item, 'out')}
           className="rounded-2xl h-12 bg-orange-50 text-orange-600 hover:bg-orange-600 hover:text-white border-none transition-all font-black text-xs"
         >
           <Minus size={18} strokeWidth={3} />
-        </Button>
+        </Button>}
 
         <Button
           variant="outline"

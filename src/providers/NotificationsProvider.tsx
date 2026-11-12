@@ -9,7 +9,13 @@ import { useAuthStore } from "../store/use-auth-store";
 interface NotificationPayloads {
     'order.created': { orderId?: number; reference?: string };
     'order.updated': { orderId?: number; newStatus?: string };
-    'ticket.created': { stationId?: number | string; tableName?: string };
+    /** Un transfert de stock a changé d'état : l'entrepôt est prévenu d'une demande, la succursale d'une expédition. */
+    'stock-transfer.updated': { transferId?: number; previousStatus?: string; status?: string; discrepancy?: boolean };
+    'ticket.created': { stationId?: number | string; tableName?: string; originBranchId?: number };
+    /** The kitchen's answer: ids and statuses only. Addressed to the sender + till/management of the order's branch. */
+    'ticket.updated': { ticketId?: number; orderId?: number; roundId?: number; stationId?: number | string; originBranchId?: number; previousStatus?: string; status?: string };
+    /** Ticket still "pending" after the configured delay (e.g. the central kitchen is offline). Same audience as ticket.updated. */
+    'ticket.delayed': { ticketId?: number; orderId?: number; roundId?: number; stationId?: number | string; originBranchId?: number; pendingMinutes?: number };
     'print-job-queued': {
         jobId: number;
         printerId: number;

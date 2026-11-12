@@ -55,8 +55,7 @@ export default function ComptoirPage() {
     const {data: tickets = [], isLoading} = useQuery({
         queryKey: ticketsQueryKey,
         queryFn: async () => {
-            // GET /api/kitchen/tickets expects `stationId` (camelCase — the Java @RequestParam
-            // name), and returns a bare JSON array, not a {data: [...]} envelope.
+
             const { data } = await api.get(`/api/kitchen/tickets`, {
                 params: { stationId }
             });
@@ -132,7 +131,7 @@ export default function ComptoirPage() {
     }
 
     return (
-        <div className="flex flex-col h-screen bg-slate-50 dark:bg-slate-950">
+        <div className="flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
             {/* HEADER */}
             <div className="bg-white dark:bg-slate-900 border-b-2 border-slate-100 dark:border-slate-800 z-20 shadow-xl shadow-slate-200/20">
                 <div className="px-6 py-4 flex items-center justify-between">
@@ -161,7 +160,7 @@ export default function ComptoirPage() {
             </div>
 
             {/* TICKETS GRID */}
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 min-h-0 overflow-hidden">
                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8 items-start">
                     {tickets.map((ticket) => (
                         <div

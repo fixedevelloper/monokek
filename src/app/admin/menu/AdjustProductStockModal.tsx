@@ -26,7 +26,12 @@ function movementLabel(type: string) {
 
 /** Admin-only modal — the only remaining way to move a storable product's stock now that the
  * edit form's field is read-only. Every submission is traced server-side (author, motif, horodatage). */
-export function AdjustProductStockModal({product, onUpdated}: { product: Product; onUpdated: () => void }) {
+export function AdjustProductStockModal({product, onUpdated, locationId}: {
+    product: Product;
+    onUpdated: () => void;
+    /** Lieu de stock de la succursale de l'onglet (le stock d'un produit est tenu par lieu). */
+    locationId?: number;
+}) {
     const [open, setOpen] = useState(false);
     const [type, setType] = useState<"in" | "out" | "adjust">("in");
     const [qty, setQty] = useState("");
@@ -35,8 +40,8 @@ export function AdjustProductStockModal({product, onUpdated}: { product: Product
     const queryClient = useQueryClient();
 
     const {data: movements = [], isLoading: isLoadingHistory} = useQuery({
-        queryKey: ["product-stock-movements", product.id],
-        queryFn: () => catalogApi.listProductStockMovements(product.id),
+        queryKey: ["product-stock-movements", product.id, locationId],
+        queryFn: () => catalogApi.listProductStockMovements(product.id, locationId),
         enabled: open,
     });
 
@@ -49,10 +54,11 @@ export function AdjustProductStockModal({product, onUpdated}: { product: Product
         }
         setLoading(true);
         try {
-            await catalogApi.adjustProductStock(product.id, {type, qty: qtyNumber, reason: reason || undefined});
+            await catalogApi.adjustProductStock(product.id, {type, qty: qtyNumber, reason: reason || undefined}, locationId);
             toast.success("Stock mis à jour");
             queryClient.invalidateQueries({queryKey: ["products"]});
             queryClient.invalidateQueries({queryKey: ["product-stock-movements", product.id]});
+            queryClient.invalidateQueries({queryKey: ["stock-items"]});
             setQty("");
             setReason("");
             onUpdated();

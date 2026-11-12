@@ -1,7 +1,7 @@
 "use client";
 
 import React, {useEffect, useRef, useState} from "react";
-import {ArrowLeft, BookOpen, ChefHat, FileUp, Loader2, Package, Search, Trash2, UtensilsCrossed,} from "lucide-react";
+import {ArrowLeft, BookOpen, ChefHat, Download, FileUp, Loader2, Package, Search, Trash2, UtensilsCrossed,} from "lucide-react";
 // UI Components
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
@@ -16,19 +16,25 @@ import {EditCategoryModal} from "./EditCategoryModal";
 import * as catalogApi from "@/src/lib/api/catalog";
 import * as companyApi from "@/src/lib/api/company";
 import * as kitchenStationApi from "@/src/lib/api/kitchenStation";
+import * as stockApi from "@/src/lib/api/stock";
+import {useAuthStore} from "@/src/store/use-auth-store";
 import {Category, Product} from "@/src/types/menus";
 import {Branch} from "@/src/types/company";
-import {KitchenStation} from "@/src/types/kitchenStation";
 import {EditProductModal} from "./EditProductModal";
 import {AdjustProductStockModal} from "./AdjustProductStockModal";
+import {ProductBranchesDialog} from "./ProductBranchesDialog";
+import {CategoryBranchesDialog} from "./CategoryBranchesDialog";
+import {DuplicatesDialog} from "./DuplicatesDialog";
 import {ConfirmDeleteModal} from "./ConfirmDeleteModal";
 import {useAuth} from "@/src/hooks/use-auth";
 import {PERMISSIONS} from "@/src/constants/roles";
 import Link from "next/link";
+import {getErrorMessage} from "@/src/lib/errors";
 import {RecipeSheet} from "./RecipeSheet";
 import {SupplementSheet} from "./SupplementSheet";
 import {useInfiniteQuery, useQuery, useQueryClient} from '@tanstack/react-query';
 import {useDebouncedValue} from "@/src/hooks/use-debounced-value";
+import {buildProductsArchive, saveBlob} from "@/src/lib/productArchive";
 
 /** Query-key prefix shared by every branch section's infinite query — react-query
  * matches by prefix, so invalidating this one key refreshes every open section at once. */
@@ -51,6 +57,30 @@ export default function AdminMenuPage() {
     // garde en vie que le TabsContent actif) et en monte une nouvelle, dont le résultat
     // reste en cache react-query si on y revient.
     const [activeBranchId, setActiveBranchId] = useState<number | null>(null);
+    const [exportStatus, setExportStatus] = useState<string | null>(null);
+
+    // Export du catalogue de la succursale affichée : produits.csv + images/ dans un zip.
+    const exportCatalog = async () => {
+        if (exportStatus !== null) return;
+        setExportStatus("Préparation…");
+        try {
+            const all = await catalogApi.listProductsAdmin();
+            const products = all.filter((p) => activeBranchId === null || p.category.branch_id === activeBranchId);
+            if (products.length === 0) return void toast.error("Aucun produit à exporter.");
+            const result = await buildProductsArchive(products, (done, total) => setExportStatus(`Images ${done}/${total}`));
+            const date = new Date().toISOString().slice(0, 10);
+            if (!(await saveBlob(result.blob, `produits-${date}.zip`))) return;
+            if (result.failedImages.length > 0) {
+                toast.warning(`${result.total} produits exportés, ${result.failedImages.length} image(s) non récupérée(s) : ${result.failedImages.slice(0, 3).join(", ")}${result.failedImages.length > 3 ? "…" : ""}`);
+            } else {
+                toast.success(`${result.total} produits exportés (${result.withImage} images).`);
+            }
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Erreur lors de l'export."));
+        } finally {
+            setExportStatus(null);
+        }
+    };
 
     const openRecipe = (product: Product) => {
         setSelectedProduct(product);
@@ -88,12 +118,6 @@ export default function AdminMenuPage() {
         queryFn: () => companyApi.listBranches(),
     });
 
-    // Même raison que branches ci-dessus : fetché ici plutôt que dans AddCategoryModal.
-    const { data: kitchenStations = [] } = useQuery({
-        queryKey: ['kitchen-stations-for-menu'],
-        queryFn: () => kitchenStationApi.listStations(),
-    });
-
     const isLoading = isCategoriesLoading || isBranchesLoading;
 
     // Sélectionne la première branche par défaut dès qu'elles arrivent (et si l'onglet
@@ -105,6 +129,7 @@ export default function AdminMenuPage() {
         }
     }, [branches, activeBranchId]);
 
+    const isOwner = useAuthStore((s) => s.user?.role === 'admin' && !s.user?.branch_id);
     const refreshMenu = () => {
         queryClient.invalidateQueries({ queryKey: PRODUCTS_PAGE_KEY });
         queryClient.invalidateQueries({ queryKey: ["categories"] });
@@ -172,11 +197,23 @@ export default function AdminMenuPage() {
                                 className="h-12 px-5 rounded-2xl border-none bg-white shadow-sm font-bold gap-2 hover:bg-slate-50 transition-all"
                                 asChild
                             >
-                                <Link href="/admin/menu/import">
+                                <Link href={activeBranchId ? `/admin/menu/import?branch=${activeBranchId}` : "/admin/menu/import"}>
                                     <FileUp size={18} className="text-primary" />
                                     <span className="hidden lg:inline">Importation Masse</span>
                                 </Link>
                             </Button>
+
+                            <Button
+                                variant="outline"
+                                disabled={exportStatus !== null || activeBranchId === null}
+                                onClick={exportCatalog}
+                                className="h-12 px-5 rounded-2xl border-none bg-white shadow-sm font-bold gap-2 hover:bg-slate-50 transition-all"
+                            >
+                                {exportStatus !== null ? <Loader2 size={18} className="animate-spin"/> : <Download size={18} className="text-primary"/>}
+                                <span className="hidden lg:inline">{exportStatus ?? "Exporter"}</span>
+                            </Button>
+
+                            {isOwner && <DuplicatesDialog onMerged={refreshMenu}/>}
 
                             <AddProductModal onProductAdded={refreshMenu} categories={categories}/>
                         </div>
@@ -210,7 +247,6 @@ export default function AdminMenuPage() {
                                     branch={branch}
                                     search={debouncedSearchQuery}
                                     categories={categories}
-                                    kitchenStations={kitchenStations}
                                     onCategoriesChanged={refreshMenu}
                                     onDeleteRequested={handleDeleteRequested}
                                     onOpenSupplement={openSupplement}
@@ -253,19 +289,37 @@ export default function AdminMenuPage() {
  * y revient, et le filtre catégorie repart à "Tout" (chaque branche a ses propres
  * catégories, un id de catégorie d'une autre branche n'aurait aucun sens ici).
  */
-function BranchProductSection({branch, search, categories, kitchenStations, onCategoriesChanged, onDeleteRequested, onOpenSupplement, onOpenRecipe}: {
+function BranchProductSection({branch, search, categories, onCategoriesChanged, onDeleteRequested, onOpenSupplement, onOpenRecipe}: {
     branch: Branch;
     search: string;
     categories: Category[];
-    kitchenStations: KitchenStation[];
     onCategoriesChanged: () => void;
     onDeleteRequested: (id: number) => void;
     onOpenSupplement: (product: Product) => void;
     onOpenRecipe: (product: Product) => void;
 }) {
     const [categoryId, setCategoryId] = useState<number | null>(null);
+    // Le partage entre succursales est une décision du propriétaire (le serveur le vérifie aussi).
+    const isOwnerRole = useAuthStore((s) => s.user?.role === 'admin');
+    // Le stock d'un produit est tenu par lieu : les ajustements de cet onglet visent le lieu de SA succursale.
+    const { data: stockLocations = [] } = useQuery({
+        queryKey: ['stock-locations'],
+        queryFn: stockApi.listStockLocations,
+        staleTime: 60_000,
+    });
+    const branchLocationId = stockLocations.find((l) => l.kind === 'BRANCH' && l.branchId === branch.id)?.id;
+
+    // Stations utilisables par les catégories de CETTE succursale : les siennes + celles de sa cuisine centrale
+    // (hub) si elle en a une. Rechargées par succursale : le serveur refuse toute autre station.
+    const { data: kitchenStations = [] } = useQuery({
+        queryKey: ['usable-stations', branch.id],
+        queryFn: () => kitchenStationApi.listUsableStations(branch.id),
+    });
     const branchCategories = React.useMemo(
-        () => categories.filter((c) => c.branch_id === branch.id),
+        () => categories
+            .filter((c) => (c.branch_ids ?? [c.branch_id]).includes(branch.id))
+            // la station affichée / modifiée ici est celle de CETTE succursale
+            .map((c) => (c.branch_stations && branch.id in c.branch_stations ? { ...c, kitchen_station_id: c.branch_stations[branch.id] } : c)),
         [categories, branch.id]
     );
 
@@ -323,9 +377,11 @@ function BranchProductSection({branch, search, categories, kitchenStations, onCa
                         }`}
                     >
                         {cat.name}
+                        {isOwnerRole && <CategoryBranchesDialog category={cat}/>}
                         <EditCategoryModal
                             category={cat}
                             kitchenStations={kitchenStations}
+                            branchId={branch.id}
                             onCategoryUpdated={onCategoriesChanged}
                         />
                     </div>
@@ -351,6 +407,7 @@ function BranchProductSection({branch, search, categories, kitchenStations, onCa
                                 key={product.id}
                                 product={product}
                                 categories={categories}
+                                locationId={branchLocationId}
                                 onDeleteRequested={onDeleteRequested}
                                 onOpenSupplement={onOpenSupplement}
                                 onOpenRecipe={onOpenRecipe}
@@ -370,14 +427,18 @@ function BranchProductSection({branch, search, categories, kitchenStations, onCa
     );
 }
 
-function ProductCard({product, categories, onDeleteRequested, onOpenSupplement, onOpenRecipe}: {
+function ProductCard({product, categories, locationId, onDeleteRequested, onOpenSupplement, onOpenRecipe}: {
     product: Product;
+    /** Lieu de stock de la succursale de l'onglet. */
+    locationId?: number;
     categories: Category[];
     onDeleteRequested: (id: number) => void;
     onOpenSupplement: (product: Product) => void;
     onOpenRecipe: (product: Product) => void;
 }) {
     const {can} = useAuth();
+    // Le partage entre succursales est une décision du propriétaire (le serveur le vérifie aussi).
+    const isOwnerRole = useAuthStore((s) => s.user?.role === 'admin');
     return (
         <div className="animate-in fade-in zoom-in-95 duration-200">
             <Card
@@ -420,8 +481,9 @@ function ProductCard({product, categories, onDeleteRequested, onOpenSupplement, 
                         <h3 className="font-bold text-lg leading-tight group-hover:text-primary transition-colors">{product.name}</h3>
                         <div className="flex gap-1">
                             {product.type === "storable" && can(PERMISSIONS.MANAGE_STOCK) && (
-                                <AdjustProductStockModal product={product} onUpdated={() => {}}/>
+                                <AdjustProductStockModal product={product} onUpdated={() => {}} locationId={locationId}/>
                             )}
+                            {isOwnerRole && <ProductBranchesDialog product={product}/>}
                             <EditProductModal product={product} categories={categories}
                                               onProductUpdated={function (): void {
 

@@ -5,7 +5,7 @@ export interface User {
   id: number;
   uuid: string;
   name: string;
-  role: 'admin' | 'cashier' | 'waiter' | 'kitchen'| 'manager';
+  role: 'admin' | 'cashier' | 'waiter' | 'kitchen'| 'manager' | 'warehouse';
   permissions: string[];
   branch_id?: number;
 }

@@ -8,6 +8,16 @@ export async function listStations(): Promise<KitchenStation[]> {
     return unwrapRaw<KitchenStation[]>(response);
 }
 
+/**
+ * Stations qu'une catégorie de {@code branchId} peut utiliser : celles de la succursale + celles des cuisines
+ * centrales auxquelles elle est liée. Un compte rattaché à une succursale obtient toujours la sienne ;
+ * `branchId` ne sert qu'à un admin sans succursale. Le serveur refuse de toute façon toute autre station.
+ */
+export async function listUsableStations(branchId?: number): Promise<KitchenStation[]> {
+    const response = await api.get('/api/kitchen/stations/usable', { params: { branchId } });
+    return unwrapRaw<KitchenStation[]>(response);
+}
+
 // ---------------------------------------------------------------------------
 // Admin CRUD
 // ---------------------------------------------------------------------------

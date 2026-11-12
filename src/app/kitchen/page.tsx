@@ -56,7 +56,8 @@ export default function KitchenDashboard() {
     // change forcément le compteur d'une station, donc on refetch sur ticket.created.
     useEffect(() => {
         const off = on('ticket.created', () => { fetchStations(); });
-        return off;
+        const offUpdated = on('ticket.updated', () => { fetchStations(); });
+        return () => { off(); offUpdated(); };
     }, [on, fetchStations]);
     // Petit helper pour choisir une icône selon le nom de la station
     const getStationIcon = (name: string) => {

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import {AlertCircle, CheckCircle2, Globe, Loader2} from "lucide-react";
 import {useRouter} from "next/navigation";
 import {toast} from "sonner";
-import {invalidateBackendIpCache} from "@/src/lib/axios";
+import {invalidateBackendIpCache, withScheme} from "@/src/lib/axios";
 
 export function IPConfigModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const router = useRouter();
@@ -46,10 +46,7 @@ export function IPConfigModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
         setTesting(true);
         setStatus('idle');
 
-        let cleanIp = ip.trim().replace(/\/+$/, "");
-        if (!cleanIp.startsWith('https')) {
-            cleanIp = `http://${cleanIp}`;
-        }
+        const cleanIp = withScheme(ip);
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -66,7 +63,8 @@ export function IPConfigModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
             const data = await response.json();
 
             if (data.status === 'ok') {
-                const ipToStore = cleanIp.replace('http://', '');
+                // Schéma conservé : il décide de https (défaut) ou http (développement) à chaque appel.
+                const ipToStore = cleanIp;
 
                 // 2. Stockage intelligent selon l'instance
                 if (isTauri) {

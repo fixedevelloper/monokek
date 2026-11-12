@@ -64,11 +64,11 @@ export default function ClockPage() {
             const alreadyPresent = present.some((entry) => entry.userId === user.id);
 
             if (alreadyPresent) {
-                await staffingApi.clockOut(user.id);
+                await staffingApi.clockOut(user.id, candidate);
                 toast.success(`${user.name} : sortie enregistrée`);
                 setLastAction({ name: user.name, kind: "out" });
             } else {
-                await staffingApi.clockIn(user.id, branchId);
+                await staffingApi.clockIn(user.id, branchId, candidate);
                 toast.success(`${user.name} : entrée enregistrée`);
                 setLastAction({ name: user.name, kind: "in" });
             }

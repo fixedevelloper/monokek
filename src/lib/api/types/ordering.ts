@@ -84,6 +84,11 @@ export interface SendRoundRequestDto {
     tableId: number;
     items: SendRoundItemLineDto[];
     note?: string;
+    /**
+     * UUID generated once per send and reused on every retry of that same send: the server answers a
+     * retry with the first result instead of creating a second round (and a second kitchen ticket).
+     */
+    clientRequestId?: string;
 }
 
 export interface SendRoundResultDto {

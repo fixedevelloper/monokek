@@ -26,13 +26,13 @@ export async function deleteShift(id: number): Promise<void> {
     await api.delete(`/api/staffing/shifts/${id}`);
 }
 
-export async function clockIn(userId: number, branchId: string | number): Promise<TimeClockEntryDto> {
-    const response = await api.post('/api/staffing/clock/clock-in', { userId, branchId });
+export async function clockIn(userId: number, branchId: string | number, pin: string): Promise<TimeClockEntryDto> {
+    const response = await api.post('/api/staffing/clock/clock-in', { userId, branchId, pin });
     return unwrapRaw(response);
 }
 
-export async function clockOut(userId: number): Promise<TimeClockEntryDto> {
-    const response = await api.post('/api/staffing/clock/clock-out', { userId });
+export async function clockOut(userId: number, pin: string): Promise<TimeClockEntryDto> {
+    const response = await api.post('/api/staffing/clock/clock-out', { userId, pin });
     return unwrapRaw(response);
 }
 
