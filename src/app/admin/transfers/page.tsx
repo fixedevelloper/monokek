@@ -14,6 +14,8 @@ import { NewTransferDialog } from "./NewTransferDialog";
 import { StockNav } from "./StockNav";
 import { STATUS_STYLES, TransferDetailDialog } from "./TransferDetailDialog";
 import { useStockScope } from "./useStockScope";
+import { useAuthStore } from "@/src/store/use-auth-store";
+import { PERMISSIONS } from "@/src/constants/roles";
 
 const TRANSFERS_KEY = ["stock-transfers"];
 
@@ -34,6 +36,7 @@ export default function TransfersPage() {
   const { scope, myLocation, isLoading: scopeLoading } = useStockScope();
   const [filter, setFilter] = useState<Filter>("all");
   const [newOpen, setNewOpen] = useState(false);
+  const canRequest = useAuthStore((s) => s.hasPermission)(PERMISSIONS.REQUEST_TRANSFER);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const { on } = useNotifications();
 
@@ -71,10 +74,10 @@ export default function TransfersPage() {
           </Button>
           <h1 className="text-4xl font-black uppercase italic tracking-tighter">Transferts</h1>
         </div>
-        <Button onClick={() => setNewOpen(true)} className="rounded-2xl gap-2 h-12 px-6 shadow-xl shadow-primary/20">
+        {canRequest && <Button onClick={() => setNewOpen(true)} className="rounded-2xl gap-2 h-12 px-6 shadow-xl shadow-primary/20">
           <Plus size={20} />
           <span className="font-bold uppercase tracking-tight">{scope === "branch" ? "Demander du stock" : "Nouvel envoi"}</span>
-        </Button>
+        </Button>}
       </div>
 
       <StockNav />

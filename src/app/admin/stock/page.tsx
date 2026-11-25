@@ -14,10 +14,13 @@ import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 import {StockNav} from "../transfers/StockNav";
 import {useStockScope} from "../transfers/useStockScope";
 import {ProductStockPanel} from "./ProductStockPanel";
+import {useAuthStore} from "@/src/store/use-auth-store";
+import {PERMISSIONS} from "@/src/constants/roles";
 
 export default function StockPage() {
   const { ingredients, isLoading, fetchIngredients, fetchUnits } = useStockStore();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const canAdjust = useAuthStore((s) => s.hasPermission)(PERMISSIONS.ADJUST_STOCK);
   const [search, setSearch] = useState("");
   const [selectedItem, setSelectedItem] = useState<Ingredient | null>(null);
   const [adjustType, setAdjustType] = useState<'in' | 'out'>('in');
@@ -55,13 +58,13 @@ export default function StockPage() {
           </h1>
         </div>
 
-        <Button
+        {canAdjust && <Button
           onClick={() => setIsAddModalOpen(true)}
           className="rounded-2xl gap-2 h-12 px-6 shadow-xl shadow-primary/20 hover:scale-105 transition-transform"
         >
           <Plus size={20} />
           <span className="font-bold uppercase tracking-tight">Ajouter</span>
-        </Button>
+        </Button>}
       </div>
 
       <StockNav />
@@ -95,7 +98,7 @@ export default function StockPage() {
               key={item.id}
               item={item}
               onAdjust={handleOpenAdjust}
-              readOnly={scope === "branch"}
+              readOnly={scope === "branch" || !canAdjust}
             />
           ))}
         </div>

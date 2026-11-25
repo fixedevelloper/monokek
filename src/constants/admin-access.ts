@@ -1,4 +1,4 @@
-import { PERMISSIONS } from '@/src/constants/roles';
+import { PERMISSIONS, STOCK_PERMISSIONS } from '@/src/constants/roles';
 
 /**
  * Pages d'administration → permission(s) requise(s). Une seule source de vérité : le tableau de bord s'en sert
@@ -20,9 +20,10 @@ export const ADMIN_ROUTE_ACCESS: ReadonlyArray<{ prefix: string; anyOf: string[]
   { prefix: '/admin/crm', anyOf: [PERMISSIONS.MANAGE_CUSTOMERS] },
   { prefix: '/admin/commissions', anyOf: [PERMISSIONS.MANAGE_COMMISSIONS, PERMISSIONS.VIEW_ANALYTICS] },
   { prefix: '/admin/history', anyOf: [PERMISSIONS.VIEW_HISTORY] },
-  { prefix: '/admin/stock', anyOf: [PERMISSIONS.MANAGE_STOCK] },
-  { prefix: '/admin/transfers', anyOf: [PERMISSIONS.MANAGE_STOCK] },
-  { prefix: '/admin/suppliers', anyOf: [PERMISSIONS.MANAGE_STOCK] },
+  // Stock : n'importe quelle permission de stock ouvre ces écrans ; chaque action y est ensuite filtrée par sa propre permission.
+  { prefix: '/admin/stock', anyOf: [...STOCK_PERMISSIONS, PERMISSIONS.MANAGE_STOCK] },
+  { prefix: '/admin/transfers', anyOf: STOCK_PERMISSIONS },
+  { prefix: '/admin/suppliers', anyOf: STOCK_PERMISSIONS },
   // Réglages : la page réunit imprimantes/caisses (devices), stations (kitchen) et réglages généraux.
   { prefix: '/admin/settings', anyOf: [PERMISSIONS.MANAGE_SETTINGS, PERMISSIONS.MANAGE_DEVICES, PERMISSIONS.MANAGE_KITCHEN] },
   { prefix: '/admin/company', anyOf: [PERMISSIONS.MANAGE_BRANCH] },

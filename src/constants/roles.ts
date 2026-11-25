@@ -20,8 +20,8 @@ export const ADMIN_ROLES: AppRole[] = [ROLES.ADMIN, ROLES.MANAGER];
 /** Rôles qui entrent dans `/admin/**` : les administrateurs, et le magasinier — mais celui-ci seulement dans {@link WAREHOUSE_PATHS}. */
 export const ADMIN_AREA_ROLES: AppRole[] = [ROLES.ADMIN, ROLES.MANAGER, ROLES.WAREHOUSE];
 
-/** Les seules pages d'administration que le magasinier atteint (le serveur lui refuse de toute façon le reste). */
-export const WAREHOUSE_PATHS = ['/admin/transfers', '/admin/stock', '/admin/suppliers'];
+/** Les seules pages d'administration qu'un employé « stock » (magasinier ou tout autre rôle doté d'une permission de stock) atteint. */
+export const STOCK_PATHS = ['/admin/transfers', '/admin/stock', '/admin/suppliers'];
 
 /**
  * Where a role lands after login, and where `RouteGuard` sends a user caught
@@ -91,7 +91,29 @@ export const PERMISSIONS = {
   MANAGE_RESERVATIONS: 'manage_reservations',
   MANAGE_KITCHEN: 'manage_kitchen',
   MANAGE_STAFFING: 'manage_staffing',
+
+  // Stock fin (migration V37) : remplace l'unique `manage_stock` sur les écrans stock, fournisseurs et transferts.
+  VIEW_STOCK: 'view_stock',
+  ADJUST_STOCK: 'adjust_stock',
+  MANAGE_PURCHASING: 'manage_purchasing',
+  REQUEST_TRANSFER: 'request_transfer',
+  APPROVE_TRANSFER: 'approve_transfer',
+  SHIP_TRANSFER: 'ship_transfer',
+  RECEIVE_TRANSFER: 'receive_transfer',
 } as const;
+
+/** Toute permission de stock : en détenir une suffit pour entrer dans les écrans de stock (le serveur filtre ensuite chaque action). */
+export const STOCK_PERMISSIONS: string[] = [
+  PERMISSIONS.VIEW_STOCK, PERMISSIONS.ADJUST_STOCK, PERMISSIONS.MANAGE_PURCHASING,
+  PERMISSIONS.REQUEST_TRANSFER, PERMISSIONS.APPROVE_TRANSFER, PERMISSIONS.SHIP_TRANSFER, PERMISSIONS.RECEIVE_TRANSFER,
+];
+
+/** Lots de permissions proposés dans l'écran des droits, pour attribuer un poste en un clic. */
+export const PERMISSION_PRESETS: Array<{ label: string; permissions: string[] }> = [
+  { label: 'Magasinier', permissions: [...STOCK_PERMISSIONS] },
+  { label: 'Réceptionnaire', permissions: [PERMISSIONS.VIEW_STOCK, PERMISSIONS.REQUEST_TRANSFER, PERMISSIONS.RECEIVE_TRANSFER] },
+  { label: 'Acheteur', permissions: [PERMISSIONS.VIEW_STOCK, PERMISSIONS.MANAGE_PURCHASING] },
+];
 
 /** Libellé français et rubrique de chaque permission, pour l'écran des droits (le serveur ne renvoie qu'un nom brut). */
 export const PERMISSION_META: Record<string, { label: string; group: string }> = {
@@ -106,7 +128,14 @@ export const PERMISSION_META: Record<string, { label: string; group: string }> =
   manage_reservations: { label: 'Gérer les réservations', group: 'Commandes' },
   manage_products: { label: 'Gérer les produits et recettes', group: 'Catalogue & stock' },
   manage_categories: { label: 'Gérer les catégories', group: 'Catalogue & stock' },
-  manage_stock: { label: 'Gérer le stock', group: 'Catalogue & stock' },
+  manage_stock: { label: 'Stock des produits (ancienne permission)', group: 'Catalogue & stock' },
+  view_stock: { label: 'Consulter le stock', group: 'Stock' },
+  adjust_stock: { label: 'Ajuster le stock et les ingrédients', group: 'Stock' },
+  manage_purchasing: { label: 'Fournisseurs et commandes', group: 'Stock' },
+  request_transfer: { label: 'Demander un transfert', group: 'Stock' },
+  approve_transfer: { label: 'Approuver un transfert', group: 'Stock' },
+  ship_transfer: { label: 'Expédier un transfert', group: 'Stock' },
+  receive_transfer: { label: 'Confirmer une réception', group: 'Stock' },
   manage_discounts: { label: 'Gérer les remises et coupons', group: 'Catalogue & stock' },
   manage_customers: { label: 'Gérer les clients et la fidélité', group: 'Clients' },
   view_reports: { label: 'Voir les rapports et la comptabilité', group: 'Rapports' },

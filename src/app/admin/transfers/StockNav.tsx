@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeftRight, Boxes, Truck } from "lucide-react";
 import { cn } from "@/src/lib/utils";
+import { useAuthStore } from "@/src/store/use-auth-store";
+import { canAccessAdminRoute } from "@/src/constants/admin-access";
 
 const LINKS = [
   { href: "/admin/transfers", label: "Transferts", icon: ArrowLeftRight },
@@ -14,9 +16,11 @@ const LINKS = [
 /** Barre de navigation des écrans de stock : c'est tout ce que voit un magasinier de l'entrepôt, et un raccourci pour les autres. */
 export function StockNav() {
   const pathname = usePathname();
+  const can = useAuthStore((s) => s.hasPermission);
+  const links = LINKS.filter((l) => canAccessAdminRoute(l.href, can));
   return (
     <nav className="flex flex-wrap gap-2">
-      {LINKS.map(({ href, label, icon: Icon }) => {
+      {links.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link

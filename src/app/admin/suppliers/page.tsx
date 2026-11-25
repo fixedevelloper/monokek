@@ -25,6 +25,8 @@ import * as suppliersApi from "@/src/lib/api/suppliers";
 import {SupplierDto} from "@/src/lib/api/types/suppliers";
 import {getErrorMessage} from "@/src/lib/errors";
 import {StockNav} from "../transfers/StockNav";
+import {useAuthStore} from "@/src/store/use-auth-store";
+import {PERMISSIONS} from "@/src/constants/roles";
 import {AddSupplierModal} from "./AddSupplierModal";
 import {EditSupplierModal} from "./EditSupplierModal";
 import {SupplierPurchasesModal} from "./SupplierPurchasesModal";
@@ -35,6 +37,7 @@ export default function AdminSuppliersPage() {
     const [loading, setLoading] = useState(true);
     const [selectedSupplier, setSelectedSupplier] = useState<SupplierDto | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const canBuy = useAuthStore((s) => s.hasPermission)(PERMISSIONS.MANAGE_PURCHASING);
     const [purchasesSupplier, setPurchasesSupplier] = useState<SupplierDto | null>(null);
     const [isPurchasesModalOpen, setIsPurchasesModalOpen] = useState(false);
 
@@ -102,7 +105,7 @@ export default function AdminSuppliersPage() {
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
-                    <AddSupplierModal onSupplierAdded={fetchSuppliers} />
+                    {canBuy && <AddSupplierModal onSupplierAdded={fetchSuppliers} />}
                 </div>
 
                 {loading && suppliers.length === 0 ? (
@@ -132,16 +135,16 @@ export default function AdminSuppliersPage() {
                                                 className="gap-2 font-black text-[10px] uppercase cursor-pointer rounded-xl py-3">
                                                 <ShoppingCart size={14} /> Achats
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem
+                                            {canBuy && <DropdownMenuItem
                                                 onClick={() => { setSelectedSupplier(supplier); setIsEditModalOpen(true); }}
                                                 className="gap-2 font-black text-[10px] uppercase cursor-pointer rounded-xl py-3">
                                                 <Edit2 size={14} /> Modifier
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
+                                            </DropdownMenuItem>}
+                                            {canBuy && <DropdownMenuItem
                                                 onClick={() => handleDeleteSupplier(supplier)}
                                                 className="gap-2 font-black text-[10px] uppercase cursor-pointer text-red-600 focus:text-red-600 rounded-xl py-3">
                                                 <Trash2 size={14} /> Supprimer
-                                            </DropdownMenuItem>
+                                            </DropdownMenuItem>}
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </div>

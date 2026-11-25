@@ -11,12 +11,15 @@ import {PurchaseOrderDto, SupplierDto} from "@/src/lib/api/types/suppliers";
 import {formatCurrency} from "@/src/lib/formatCurrency";
 import {getErrorMessage} from "@/src/lib/errors";
 import {AddPurchaseOrderModal} from "./AddPurchaseOrderModal";
+import {useAuthStore} from "@/src/store/use-auth-store";
+import {PERMISSIONS} from "@/src/constants/roles";
 
 export function SupplierPurchasesModal({supplier, open, onOpenChange}: {
     supplier: SupplierDto;
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }) {
+    const canBuy = useAuthStore((s) => s.hasPermission)(PERMISSIONS.MANAGE_PURCHASING);
     const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderDto[]>([]);
     const [loading, setLoading] = useState(true);
     const [isAddOpen, setIsAddOpen] = useState(false);
@@ -46,12 +49,12 @@ export function SupplierPurchasesModal({supplier, open, onOpenChange}: {
                             <DialogTitle className="text-2xl font-black uppercase italic tracking-tighter">
                                 Achats — <span className="text-primary">{supplier.name}</span>
                             </DialogTitle>
-                            <Button
+                            {canBuy && <Button
                                 onClick={() => setIsAddOpen(true)}
                                 className="h-10 px-4 rounded-xl font-black uppercase text-[10px] gap-2"
                             >
                                 <Plus size={14}/> Nouvel achat
-                            </Button>
+                            </Button>}
                         </div>
                     </DialogHeader>
 

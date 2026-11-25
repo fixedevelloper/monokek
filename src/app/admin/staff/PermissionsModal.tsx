@@ -8,7 +8,7 @@ import {Info, Loader2, ShieldCheck} from "lucide-react";
 import {toast} from "sonner";
 import {Permission, StaffMember} from "@/src/types/management";
 import * as identityApi from "@/src/lib/api/identity";
-import {PERMISSION_META} from "@/src/constants/roles";
+import {PERMISSION_META, PERMISSION_PRESETS} from "@/src/constants/roles";
 import {getErrorMessage} from "@/src/lib/errors";
 
 
@@ -61,6 +61,12 @@ export function PermissionsModal({ member, open, onOpenChange }: PermissionsModa
         );
     };
 
+    /** Un poste en un clic : ajoute les permissions du lot (sans en retirer), seulement celles que le serveur connaît. */
+    const applyPreset = (permissions: string[]) => {
+        const known = new Set(allPermissions.map(p => p.name));
+        setUserPermissions(prev => Array.from(new Set([...prev, ...permissions.filter(p => known.has(p))])));
+    };
+
     const handleSave = async () => {
         setLoading(true);
         try {
@@ -91,6 +97,17 @@ export function PermissionsModal({ member, open, onOpenChange }: PermissionsModa
                         <Info size={12} /> Ces permissions s'ajoutent à celles du rôle {member.role}
                     </p>
                 </DialogHeader>
+
+                <div className="flex flex-wrap items-center gap-2 pb-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Postes :</span>
+                    {PERMISSION_PRESETS.map(preset => (
+                        <Button key={preset.label} type="button" variant="outline" size="sm"
+                                className="rounded-full h-8 text-[10px] font-black uppercase tracking-widest"
+                                onClick={() => applyPreset(preset.permissions)}>
+                            {preset.label}
+                        </Button>
+                    ))}
+                </div>
 
                 <div className="flex-1 overflow-y-auto pr-2 space-y-8 py-4">
                     {Object.entries(groupedPermissions).map(([groupName, permissions]) => (

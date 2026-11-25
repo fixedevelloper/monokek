@@ -13,6 +13,8 @@ import { cn } from "@/src/lib/utils";
 import * as transferApi from "@/src/lib/api/stockTransfers";
 import type { StockTransfer, TransferLine } from "@/src/lib/api/stockTransfers";
 import type { StockScope } from "@/src/lib/api/stock";
+import { useAuthStore } from "@/src/store/use-auth-store";
+import { PERMISSIONS } from "@/src/constants/roles";
 
 export const STATUS_STYLES: Record<transferApi.TransferStatus, string> = {
   REQUESTED: "bg-amber-100 text-amber-700",
@@ -66,7 +68,13 @@ export function TransferDetailDialog({ transfer, scope, myLocationId, onClose, o
 
   if (!transfer) return null;
   const t = transfer;
+  const can = useAuthStore((s) => s.hasPermission);
+  // Le lieu (scope) dit OÙ l'on agit ; la permission dit CE QUE l'on peut faire.
   const supplier = scope === "owner" || scope === "warehouse";
+  const mayApprove = supplier && can(PERMISSIONS.APPROVE_TRANSFER);
+  const mayShip = supplier && can(PERMISSIONS.SHIP_TRANSFER);
+  const mayReceive = can(PERMISSIONS.RECEIVE_TRANSFER);
+  const mayCancel = can(PERMISSIONS.REQUEST_TRANSFER) || can(PERMISSIONS.APPROVE_TRANSFER) || can(PERMISSIONS.SHIP_TRANSFER);
   const isDestination = scope === "owner" || (scope === "branch" && myLocationId === t.to.id);
   const lineQty = (l: TransferLine) => parseFloat(counts[l.id] ?? "");
   const payload = () => t.lines.map((l) => ({ lineId: l.id, qty: lineQty(l) }));
@@ -104,8 +112,8 @@ export function TransferDetailDialog({ transfer, scope, myLocationId, onClose, o
             </div>
             {t.lines.map((l) => {
               const gap = l.qtyReceived !== null && l.qtyShipped !== null && l.qtyReceived < l.qtyShipped;
-              const editShip = t.status === "APPROVED" && supplier;
-              const editReceive = t.status === "SHIPPED" && isDestination;
+              const editShip = t.status === "APPROVED" && mayShip;
+              const editReceive = t.status === "SHIPPED" && isDestination && mayReceive;
               return (
                 <div key={l.id} className="grid grid-cols-[1fr_5rem_5rem_6rem] gap-2 items-center px-4 py-3 border-t">
                   <span className="font-bold text-slate-800 truncate">{l.name}</span>
@@ -136,24 +144,24 @@ export function TransferDetailDialog({ transfer, scope, myLocationId, onClose, o
           )}
 
           <div className="flex flex-wrap gap-3">
-            {t.status === "REQUESTED" && supplier && (
+            {t.status === "REQUESTED" && mayApprove && (
               <Button className="rounded-2xl h-12 gap-2 font-bold" disabled={run.isPending} onClick={() => run.mutate(() => transferApi.approveTransfer(t.id))}>
                 <Check size={18} /> Approuver
               </Button>
             )}
-            {t.status === "APPROVED" && supplier && (
+            {t.status === "APPROVED" && mayShip && (
               <Button className="rounded-2xl h-12 gap-2 font-bold" disabled={run.isPending || !valid}
                       onClick={() => run.mutate(() => transferApi.shipTransfer(t.id, payload()))}>
                 <Truck size={18} /> Expédier
               </Button>
             )}
-            {t.status === "SHIPPED" && isDestination && (
+            {t.status === "SHIPPED" && isDestination && mayReceive && (
               <Button className="rounded-2xl h-12 gap-2 font-bold bg-emerald-600 hover:bg-emerald-700" disabled={run.isPending || !valid}
                       onClick={() => run.mutate(() => transferApi.receiveTransfer(t.id, payload()))}>
                 <PackageCheck size={18} /> Confirmer la réception
               </Button>
             )}
-            {(t.status === "REQUESTED" || t.status === "APPROVED" || (t.status === "SHIPPED" && scope === "owner")) && !cancelling && (
+            {mayCancel && (t.status === "REQUESTED" || t.status === "APPROVED" || (t.status === "SHIPPED" && scope === "owner")) && !cancelling && (
               <Button variant="outline" className="rounded-2xl h-12 gap-2 font-bold text-red-600 border-red-100 hover:bg-red-50" onClick={() => setCancelling(true)}>
                 <X size={18} /> {t.status === "SHIPPED" ? "Reprendre l'envoi" : "Annuler"}
               </Button>
