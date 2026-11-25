@@ -3,11 +3,14 @@
 import React, {useState} from "react";
 import {ArrowLeft, CheckCircle2, FileUp, Trash2} from "lucide-react";
 import {Button} from "@/components/ui/button";
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
 import {toast} from "sonner";
 import * as catalogApi from "@/src/lib/api/catalog";
 import Link from "next/link";
 import Papa from "papaparse"; // Import pour le CSV
-import {useRouter} from "next/navigation";
+import {useRouter, useSearchParams} from "next/navigation";
+import {useQuery} from "@tanstack/react-query";
+import * as companyApi from "@/src/lib/api/company";
 import {useQueryClient} from "@tanstack/react-query";
 import {getErrorMessage} from "@/src/lib/errors";
 import * as storageApi from "@/src/lib/api/storage";
@@ -19,6 +22,25 @@ const norm = (v?: string) => (v ?? "").trim().replace(/\s+/g, " ").toLowerCase()
 const rowKey = (r: ImportRow) => `${norm(r.category)}|${norm(r.name)}`;
 
 export default function ImportProductsPage() {
+    return (
+        <React.Suspense fallback={<div className="p-8">Chargement...</div>}>
+            <ImportProductsContent/>
+        </React.Suspense>
+    );
+}
+
+function ImportProductsContent() {
+    // Succursale visée = onglet actif du menu (?branch=<id>). Aucune valeur par défaut : sans elle on
+    // refuse d'importer plutôt que de tomber silencieusement sur la première succursale.
+    const searchParams = useSearchParams();
+    // Préselectionnée depuis l'onglet du menu, mais modifiable ici avant d'importer.
+    const [branchId, setBranchId] = useState<number | null>(Number(searchParams.get("branch")) || null);
+    const {data: branches = []} = useQuery({queryKey: ['branches-for-menu'], queryFn: () => companyApi.listBranches()});
+    const branchName = branches.find((b) => b.id === branchId)?.name;
+    // Un seul choix possible (compte de succursale) : on le prend d'office.
+    React.useEffect(() => {
+        if (branchId === null && branches.length === 1) setBranchId(branches[0].id);
+    }, [branches, branchId]);
     const [fileData, setFileData] = useState<ImportRow[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [progress, setProgress] = useState<string | null>(null);
@@ -26,8 +48,8 @@ export default function ImportProductsPage() {
     const [images, setImages] = useState<Map<string, Blob>>(new Map());
     const router = useRouter();
     const queryClient = useQueryClient();
-    // Doublon = même catégorie + même nom (insensible à la casse) qu'un produit existant de la succursale
-    // ciblée, ou qu'une ligne précédente du fichier. Le serveur applique la même règle en filet de sécurité.
+    // Doublon = même catégorie + même nom (insensible à la casse) qu'un produit déjà vendu dans la succursale
+    // ciblée (une catégorie partagée peut avoir des produits vendus ailleurs seulement : pas un doublon), ou qu'une ligne précédente du fichier. Le serveur applique la même règle en filet de sécurité.
     const duplicates = React.useMemo(() => {
         const seen = new Set<string>();
         return fileData.map((row) => {
@@ -40,13 +62,18 @@ export default function ImportProductsPage() {
     const newCount = duplicates.filter((d) => !d).length;
 
     const loadExisting = () => {
-        const branch = Number(new URLSearchParams(window.location.search).get("branch")) || null;
+        const branch = branchId;
         catalogApi.listProductsAdmin()
             .then((all) => setExisting(new Set(all
-                .filter((p) => branch === null || p.category.branch_id === branch)
+                .filter((p) => branch === null || (p.branch_ids ?? [p.category.branch_id]).includes(branch))
                 .map((p) => rowKey({category: p.category.name, name: p.name})))))
             .catch(() => setExisting(new Set())); // pas bloquant : le serveur ignore aussi les doublons
     };
+
+    React.useEffect(() => {
+        if (fileData.length > 0) loadExisting();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [branchId, fileData.length]);
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -56,7 +83,6 @@ export default function ImportProductsPage() {
             parseProductsArchive(file)
                 .then(({rows, images: imgs}) => {
                     if (rows.length === 0) return toast.error("Le fichier semble vide.");
-                    loadExisting();
                     setFileData(rows);
                     setImages(imgs);
                     toast.success(`${rows.length} produits et ${imgs.size} images détectés.`);
@@ -76,7 +102,6 @@ export default function ImportProductsPage() {
             complete: (results) => {
                 // On valide que le CSV a les bonnes colonnes (name, price, category)
                 if (results.data.length > 0) {
-                    loadExisting();
                     setFileData(results.data);
                     toast.success(`${results.data.length} produits détectés.`);
                 } else {
@@ -91,6 +116,7 @@ export default function ImportProductsPage() {
 
     const confirmImport = async () => {
         const rowsToImport = fileData.filter((_, i) => !duplicates[i]);
+        if (branchId === null) return toast.error("Choisissez d'abord la succursale dans laquelle importer.");
         if (rowsToImport.length === 0) return toast.info("Tous ces produits existent déjà : rien à importer.");
 
         setIsUploading(true);
@@ -115,9 +141,7 @@ export default function ImportProductsPage() {
             }));
             setProgress("Création des produits…");
             await catalogApi.bulkImportProducts({
-                // TODO: pas de sélecteur de succursale dans cette UI — branche par défaut,
-                // comme le hardcodage Branch::first() de l'ancienne version Laravel.
-                branchId: Number(new URLSearchParams(window.location.search).get("branch")) || 1,
+                branchId,
                 items: rowsToImport.map((row) => ({
                     name: String(row.name ?? ''),
                     price: parseFloat(row.price ?? '') || 0,
@@ -158,6 +182,20 @@ export default function ImportProductsPage() {
                 )}
             </div>
 
+            <div className="flex items-center gap-4 bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Importer dans la succursale</span>
+                <Select value={branchId === null ? "" : String(branchId)} onValueChange={(v) => setBranchId(Number(v))} disabled={isUploading}>
+                    <SelectTrigger className="w-64 h-11 rounded-xl font-bold">
+                        <SelectValue placeholder="Choisir une succursale"/>
+                    </SelectTrigger>
+                    <SelectContent>
+                        {branches.map((b) => (
+                            <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+
             {fileData.length === 0 ? (
                 <div className="group relative border-4 border-dashed border-slate-200 rounded-[3rem] p-20 text-center bg-white hover:border-primary/50 transition-colors">
                     <input type="file" onChange={handleFileUpload} id="csv-upload" className="hidden" accept=".csv,.zip" />
@@ -175,6 +213,9 @@ export default function ImportProductsPage() {
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     {/* Infos Recap */}
                     <div className="flex gap-4">
+                        <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex items-center">
+                            <span className="text-sm font-bold text-slate-700">Succursale : {branchName ?? (branchId === null ? "non choisie" : `#${branchId}`)}</span>
+                        </div>
                         <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex items-center gap-3 flex-1">
                             <CheckCircle2 className="text-emerald-500" />
                             <span className="text-sm font-bold text-emerald-800">{newCount} articles prêts à l'importation{newCount < fileData.length ? ` · ${fileData.length - newCount} doublon(s) ignoré(s)` : ""}{images.size > 0 ? ` (${images.size} images)` : ""}</span>
@@ -210,7 +251,7 @@ export default function ImportProductsPage() {
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Vérifiez bien les données avant de valider</p>
                         <Button
                             onClick={confirmImport}
-                            disabled={isUploading || newCount === 0}
+                            disabled={isUploading || newCount === 0 || branchId === null}
                             className="h-16 px-12 rounded-[2rem] font-black text-lg italic shadow-xl shadow-primary/20"
                         >
                             {isUploading ? (progress ?? "IMPORTATION EN COURS...") : "LANCER L'IMPORTATION"}

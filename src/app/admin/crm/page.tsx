@@ -19,6 +19,7 @@ import {
     CheckCircle2,
     XCircle,
     Printer,
+    FileDown,
     Loader2,
     ListOrdered,
 } from "lucide-react";
@@ -41,6 +42,8 @@ import { CouponDto, CustomerDto } from "@/src/lib/api/types/crm";
 import { formatCurrency } from "@/src/lib/formatCurrency";
 import { getErrorMessage } from "@/src/lib/errors";
 import { resolveBranchId } from "@/src/lib/branch";
+import { buildCouponCardsPdf, isUsable } from "@/src/lib/couponCardsPdf";
+import { saveBlob } from "@/src/lib/productArchive";
 import { AddCustomerModal } from "./AddCustomerModal";
 import { EditCustomerModal } from "./EditCustomerModal";
 import { CustomerLoyaltySheet } from "./CustomerLoyaltySheet";
@@ -57,6 +60,7 @@ export default function AdminCrmPage() {
     const [loyaltyCustomer, setLoyaltyCustomer] = useState<CustomerDto | null>(null);
     const [isLoyaltySheetOpen, setIsLoyaltySheetOpen] = useState(false);
     const [printingCouponId, setPrintingCouponId] = useState<number | null>(null);
+    const [exportingCards, setExportingCards] = useState(false);
     const [couponForOrders, setCouponForOrders] = useState<CouponDto | null>(null);
 
     const fetchCustomers = async () => {
@@ -82,6 +86,26 @@ export default function AdminCrmPage() {
         fetchCustomers();
         fetchCoupons();
     }, []);
+
+    /** Cartes PDF des coupons encore utilisables (ni expirés ni épuisés), prêtes à imprimer et découper. */
+    const handleExportCards = async () => {
+        const usable = coupons.filter(isUsable);
+        if (usable.length === 0) {
+            toast.info("Aucun coupon utilisable à exporter.");
+            return;
+        }
+        setExportingCards(true);
+        try {
+            const storeName = await crmApi.getStoreName().catch(() => "");
+            const { blob, count } = await buildCouponCardsPdf(usable, storeName);
+            const saved = await saveBlob(blob, `coupons-${new Date().toISOString().slice(0, 10)}.pdf`);
+            if (saved) toast.success(`${count} carte${count > 1 ? "s" : ""} de coupon exportée${count > 1 ? "s" : ""}`);
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Impossible de générer le PDF des coupons"));
+        } finally {
+            setExportingCards(false);
+        }
+    };
 
     const handlePrintCoupon = async (coupon: CouponDto) => {
         setPrintingCouponId(coupon.id);
@@ -327,7 +351,18 @@ export default function AdminCrmPage() {
                                     <h2 className="text-lg font-bold text-slate-900 dark:text-white">Coupons de réduction</h2>
                                     <p className="text-xs text-slate-500 dark:text-slate-400">Gérez vos codes promo et offres promotionnelles</p>
                                 </div>
-                                <AddCouponModal onCouponAdded={fetchCoupons} />
+                                <div className="flex items-center gap-3">
+                                    <Button
+                                        variant="outline"
+                                        onClick={handleExportCards}
+                                        disabled={exportingCards || coupons.filter(isUsable).length === 0}
+                                        className="h-12 px-5 rounded-2xl font-black uppercase tracking-[0.1em] text-[11px] gap-2"
+                                    >
+                                        {exportingCards ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                                        Cartes PDF
+                                    </Button>
+                                    <AddCouponModal onCouponAdded={fetchCoupons} />
+                                </div>
                             </div>
 
                             {/* LISTE DES COUPONS */}

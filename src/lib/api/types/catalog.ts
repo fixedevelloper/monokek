@@ -35,6 +35,8 @@ export interface ProductDto {
     type: string;
     image: string | null;
     modifiers: ModifierDto[];
+    /** Succursales où le produit est vendu. */
+    branchIds?: number[];
 }
 
 export interface CategoryDto {

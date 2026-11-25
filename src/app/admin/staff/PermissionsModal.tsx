@@ -8,6 +8,8 @@ import {Info, Loader2, ShieldCheck} from "lucide-react";
 import {toast} from "sonner";
 import {Permission, StaffMember} from "@/src/types/management";
 import * as identityApi from "@/src/lib/api/identity";
+import {PERMISSION_META} from "@/src/constants/roles";
+import {getErrorMessage} from "@/src/lib/errors";
 
 
 interface PermissionsModalProps {
@@ -43,7 +45,8 @@ export function PermissionsModal({ member, open, onOpenChange }: PermissionsModa
     const groupedPermissions = useMemo(() => {
         const groups: Record<string, Permission[]> = {};
         allPermissions.forEach(p => {
-            const groupName = p.name.split('_')[0]; // ex: 'orders', 'products'
+            // Rubrique et libellé français connus de l'app ; une permission inconnue (ajoutée côté serveur) reste listée à part.
+            const groupName = PERMISSION_META[p.name]?.group ?? 'Autres';
             if (!groups[groupName]) groups[groupName] = [];
             groups[groupName].push(p);
         });
@@ -65,7 +68,7 @@ export function PermissionsModal({ member, open, onOpenChange }: PermissionsModa
             toast.success("Permissions mises à jour avec succès");
             onOpenChange(false);
         } catch (error) {
-            toast.error("Erreur lors de la mise à jour");
+            toast.error(getErrorMessage(error, "Erreur lors de la mise à jour"));
         } finally {
             setLoading(false);
         }
@@ -107,7 +110,7 @@ export function PermissionsModal({ member, open, onOpenChange }: PermissionsModa
                                     >
                                         {/* Label dynamique venant du backend */}
                                         <span className="text-xs font-bold uppercase italic">
-                                            {perm.label}
+                                            {PERMISSION_META[perm.name]?.label ?? perm.label}
                                         </span>
                                         <Checkbox checked={userPermissions.includes(perm.name)} />
 

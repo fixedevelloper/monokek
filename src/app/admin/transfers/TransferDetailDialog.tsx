@@ -75,7 +75,7 @@ export function TransferDetailDialog({ transfer, scope, myLocationId, onClose, o
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="rounded-[2rem] max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="rounded-[2rem] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-3 text-2xl font-black italic uppercase tracking-tighter">
             {t.reference}

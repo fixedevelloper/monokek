@@ -50,6 +50,8 @@ export interface Product {
     alert_stock: number;
     type: string;
     image_url: string | null;
+    /** Succursales où le produit est vendu (absent = celle de sa catégorie). */
+    branch_ids?: number[];
 }
 
 export interface Category {

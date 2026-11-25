@@ -31,7 +31,7 @@ import {toast} from 'sonner';
 import {SecurityModal} from '@/components/layout/SecurityModal';
 import {AxiosError} from 'axios';
 import {useAuth} from '@/src/hooks/use-auth';
-import {PERMISSIONS} from '@/src/constants/roles';
+import {canAccessAdminRoute} from '@/src/constants/admin-access';
 
 // Types pour nos fonctionnalités
 interface AdminAction {
@@ -40,8 +40,7 @@ interface AdminAction {
   icon: React.ElementType;
   href: string;
   color: string;
-  /** Carte visible seulement si `can(permission)` — absent = visible à tout ADMIN/MANAGER, comme avant. */
-  permission?: string;
+  // La permission requise vient de `ADMIN_ROUTE_ACCESS` (src/constants/admin-access.ts), partagée avec le layout.
 }
 
 const ADMIN_ACTIONS: AdminAction[] = [
@@ -51,7 +50,6 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: Utensils,
     href: "/admin/menu",
     color: "bg-orange-500",
-    permission: PERMISSIONS.MANAGE_PRODUCTS,
   },
   {
     title: "Plan de Salle",
@@ -66,7 +64,6 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: BarChart3,
     href: "/admin/reports",
     color: "bg-emerald-600",
-    permission: PERMISSIONS.VIEW_REPORTS,
   },
   {
     title: "Personnel",
@@ -74,7 +71,6 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: Users,
     href: "/admin/staff",
     color: "bg-purple-600",
-    permission: PERMISSIONS.VIEW_STAFF,
   },
   {
     title: "Planning",
@@ -103,7 +99,6 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: TrendingUp,
     href: "/admin/commissions",
     color: "bg-emerald-500", // Vert pour la croissance et le profit
-    permission: PERMISSIONS.VIEW_ANALYTICS,
   },
   {
     title: "Historique",
@@ -111,7 +106,6 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: History,
     href: "/admin/history",
     color: "bg-slate-700",
-    permission: PERMISSIONS.VIEW_HISTORY,
   },
   {
     title: "Inventaire",
@@ -119,7 +113,6 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: Package, // Utilise 'Package' ou 'Boxes' pour le stock physique
     href: "/admin/stock",
     color: "bg-red-700",
-    permission: PERMISSIONS.MANAGE_STOCK,
   },
   {
     title: "Transferts de stock",
@@ -127,7 +120,6 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: ArrowLeftRight,
     href: "/admin/transfers",
     color: "bg-indigo-600",
-    permission: PERMISSIONS.MANAGE_STOCK,
   },
   {
     title: "Mouvements",
@@ -135,7 +127,6 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: History, // Garde 'History' pour l'historique des flux
     href: "/admin/stock/history",
     color: "bg-amber-600",
-    permission: PERMISSIONS.MANAGE_STOCK,
   },
   {
     title: "Fournisseurs",
@@ -143,7 +134,6 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: Truck,
     href: "/admin/suppliers",
     color: "bg-teal-600",
-    permission: PERMISSIONS.MANAGE_STOCK,
   },
   {
     title: "Comptabilité",
@@ -151,7 +141,6 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: Briefcase, // ou Calculator, Briefcase
     href: "/admin/accounting",
     color: "bg-blue-600", // Optionnel : change le rose pour un ton plus "finance"
-    permission: PERMISSIONS.VIEW_REPORTS,
   },
   {
     title: "Paramètres",
@@ -159,7 +148,6 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: Settings,
     href: "/admin/settings",
     color: "bg-pink-600",
-    permission: PERMISSIONS.MANAGE_SETTINGS,
   },
   {
     title: "Organisation",
@@ -167,7 +155,6 @@ const ADMIN_ACTIONS: AdminAction[] = [
     icon: Building2,
     href: "/admin/company",
     color: "bg-indigo-700",
-    permission: PERMISSIONS.MANAGE_BRANCH,
   },
   {
     title: "Journal d'activité",
@@ -182,7 +169,7 @@ export default function AdminPage() {
   const router = useRouter();
   const logout = useAuthStore((state) => state.logout); // On suppose que tu as une action logout
   const {can} = useAuth();
-  const visibleActions = ADMIN_ACTIONS.filter((action) => !action.permission || can(action.permission));
+  const visibleActions = ADMIN_ACTIONS.filter((action) => canAccessAdminRoute(action.href, can));
   const [isSecurityOpen, setIsSecurityOpen] = useState(false);
   const updatePin = async (newPin: string) => {
     // Optionnel : Validation locale rapide avant l'appel

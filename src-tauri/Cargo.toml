@@ -1,6 +1,6 @@
 [package]
 name = "mono-kep"
-version = "0.1.0"
+version = "0.2.3"
 description = "Application de gestion de restaurant"
 authors = ["you"]
 edition = "2021"

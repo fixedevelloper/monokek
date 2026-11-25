@@ -307,6 +307,11 @@ export default function SettingsPage() {
       </div>
   );
 
+  // Chaque onglet exige sa propre permission (le serveur applique les mêmes) ; on ouvre le premier qui est permis.
+  const canDevices = can(PERMISSIONS.MANAGE_DEVICES);
+  const canKitchen = can(PERMISSIONS.MANAGE_KITCHEN);
+  const defaultTab = canDevices ? "printing" : canKitchen ? "stations" : "general";
+
   return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6 pb-20">
 
@@ -335,23 +340,23 @@ export default function SettingsPage() {
           )}
         </div>
 
-        <Tabs defaultValue="printing" className="space-y-6">
+        <Tabs defaultValue={defaultTab} className="space-y-6">
           <TabsList className="bg-slate-200/50 dark:bg-slate-900 p-1 rounded-xl h-12">
             <TabsTrigger value="general" className="rounded-lg px-6 font-bold uppercase text-xs gap-2">
               <Store size={14} /> Succursale
             </TabsTrigger>
-            <TabsTrigger value="printing" className="rounded-lg px-6 font-bold uppercase text-xs gap-2">
+            {canDevices && <TabsTrigger value="printing" className="rounded-lg px-6 font-bold uppercase text-xs gap-2">
               <PrinterX size={14} /> Impression
-            </TabsTrigger>
-            <TabsTrigger value="stations" className="rounded-lg px-6 font-bold uppercase text-xs gap-2">
+            </TabsTrigger>}
+            {canKitchen && <TabsTrigger value="stations" className="rounded-lg px-6 font-bold uppercase text-xs gap-2">
               <ChefHat size={14} /> Stations
-            </TabsTrigger>
-            <TabsTrigger value="registers" className="rounded-lg px-6 font-bold uppercase text-xs gap-2">
+            </TabsTrigger>}
+            {canDevices && <TabsTrigger value="registers" className="rounded-lg px-6 font-bold uppercase text-xs gap-2">
               <CreditCard size={14} /> Caisses
-            </TabsTrigger>
-            <TabsTrigger value="security" className="rounded-lg px-6 font-bold uppercase text-xs gap-2">
+            </TabsTrigger>}
+            {can(PERMISSIONS.MANAGE_SETTINGS) && <TabsTrigger value="security" className="rounded-lg px-6 font-bold uppercase text-xs gap-2">
               <ShieldCheck size={14} /> Système
-            </TabsTrigger>
+            </TabsTrigger>}
           </TabsList>
 
           {/* --- ONGLET IMPRESSION --- */}

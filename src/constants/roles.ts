@@ -81,7 +81,45 @@ export const PERMISSIONS = {
   // Réglages
   MANAGE_SETTINGS: 'manage_settings',
   MANAGE_BRANCH: 'manage_branch',
+
+  // Administration fine (migration V36) : avant, tout manager y accédait par son seul rôle.
+  MANAGE_DEVICES: 'manage_devices',
+  VIEW_ACTIVITY_LOG: 'view_activity_log',
+  MANAGE_CUSTOMERS: 'manage_customers',
+  MANAGE_FLOOR: 'manage_floor',
+  MANAGE_COMMISSIONS: 'manage_commissions',
+  MANAGE_RESERVATIONS: 'manage_reservations',
+  MANAGE_KITCHEN: 'manage_kitchen',
+  MANAGE_STAFFING: 'manage_staffing',
 } as const;
+
+/** Libellé français et rubrique de chaque permission, pour l'écran des droits (le serveur ne renvoie qu'un nom brut). */
+export const PERMISSION_META: Record<string, { label: string; group: string }> = {
+  manage_users: { label: 'Gérer les comptes du personnel', group: 'Personnel' },
+  view_staff: { label: 'Voir le personnel', group: 'Personnel' },
+  edit_permissions: { label: 'Modifier les permissions', group: 'Personnel' },
+  manage_staffing: { label: 'Planning et pointage', group: 'Personnel' },
+  create_orders: { label: 'Créer des commandes', group: 'Commandes' },
+  edit_orders: { label: 'Modifier des commandes', group: 'Commandes' },
+  cancel_orders: { label: 'Annuler des commandes', group: 'Commandes' },
+  view_history: { label: "Consulter l'historique des commandes", group: 'Commandes' },
+  manage_reservations: { label: 'Gérer les réservations', group: 'Commandes' },
+  manage_products: { label: 'Gérer les produits et recettes', group: 'Catalogue & stock' },
+  manage_categories: { label: 'Gérer les catégories', group: 'Catalogue & stock' },
+  manage_stock: { label: 'Gérer le stock', group: 'Catalogue & stock' },
+  manage_discounts: { label: 'Gérer les remises et coupons', group: 'Catalogue & stock' },
+  manage_customers: { label: 'Gérer les clients et la fidélité', group: 'Clients' },
+  view_reports: { label: 'Voir les rapports et la comptabilité', group: 'Rapports' },
+  view_analytics: { label: 'Voir les statistiques', group: 'Rapports' },
+  manage_commissions: { label: 'Régler les commissions', group: 'Rapports' },
+  view_activity_log: { label: "Voir le journal d'activité", group: 'Rapports' },
+  close_cashier: { label: 'Clôturer la caisse (non appliquée)', group: 'Finance' },
+  manage_floor: { label: 'Gérer le plan de salle et les tables', group: 'Salle & cuisine' },
+  manage_kitchen: { label: 'Gérer les stations de cuisine', group: 'Salle & cuisine' },
+  manage_devices: { label: 'Imprimantes, postes et caisses', group: 'Configuration' },
+  manage_settings: { label: 'Réglages généraux', group: 'Configuration' },
+  manage_branch: { label: 'Sociétés et succursales', group: 'Configuration' },
+};
 
 /**
  * Couleurs thématiques par rôle pour l'interface

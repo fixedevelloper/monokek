@@ -35,6 +35,7 @@ export function mapProductDtoToProduct(dto: ProductDto): Product {
         alert_stock: dto.alertStock,
         type: dto.type,
         image_url: dto.image,
+        branch_ids: dto.branchIds,
     };
 }
 

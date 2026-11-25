@@ -64,3 +64,9 @@ export async function redeemPoints(customerId: number, payload: LoyaltyPointsReq
     const response = await api.post(`/api/admin/customers/${customerId}/loyalty/redeem`, payload);
     return unwrapRaw(response);
 }
+
+/** Nom du commerce (réglage `store_name`), pour les documents imprimés. Vide si non renseigné. */
+export async function getStoreName(): Promise<string> {
+    const response = await api.get<Record<string, string | null>>('/api/admin/settings');
+    return unwrapRaw(response)?.store_name?.trim() ?? '';
+}

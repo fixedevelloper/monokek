@@ -6,7 +6,11 @@ import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTr
 import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
 import {Button} from "@/components/ui/button";
-import {Loader2, Ticket} from "lucide-react";
+import {Calendar as CalendarIcon, Loader2, Ticket, X} from "lucide-react";
+import {format} from "date-fns";
+import {fr} from "date-fns/locale";
+import {Calendar} from "@/components/ui/calendar";
+import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
 import {toast} from "sonner";
 import * as crmApi from "@/src/lib/api/crm";
 import {AxiosError} from "axios";
@@ -20,19 +24,25 @@ interface CouponFormValues {
     code: string;
     amount: string;
     minAmount: string;
-    expiresAt: string;
     maxUses: string;
 }
 
 export function AddCouponModal({ onCouponAdded }: AddCouponModalProps) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    // Date choisie dans le calendrier (et non un <input type="date"> natif, peu fiable dans la webview Linux de Tauri).
+    const [expiresAt, setExpiresAt] = useState<Date | undefined>();
+    const [calendarOpen, setCalendarOpen] = useState(false);
     const { register, handleSubmit, reset } = useForm<CouponFormValues>({
-        defaultValues: { code: "", amount: "", minAmount: "", expiresAt: "", maxUses: "" },
+        defaultValues: { code: "", amount: "", minAmount: "", maxUses: "" },
     });
 
     useEffect(() => {
-        if (open) reset({ code: "", amount: "", minAmount: "", expiresAt: "", maxUses: "" });
+        if (open) {
+            reset({ code: "", amount: "", minAmount: "", maxUses: "" });
+            setExpiresAt(undefined);
+            setCalendarOpen(false);
+        }
     }, [open, reset]);
 
     const onSubmit = async (data: CouponFormValues) => {
@@ -42,7 +52,8 @@ export function AddCouponModal({ onCouponAdded }: AddCouponModalProps) {
                 code: data.code.toUpperCase(),
                 amount: Number(data.amount),
                 minAmount: data.minAmount ? Number(data.minAmount) : undefined,
-                expiresAt: data.expiresAt ? `${data.expiresAt}T23:59:59` : undefined,
+                // Fin de journée, en date locale (toISOString décalerait le jour selon le fuseau).
+                expiresAt: expiresAt ? `${format(expiresAt, "yyyy-MM-dd")}T23:59:59` : undefined,
                 maxUses: data.maxUses ? Number(data.maxUses) : undefined,
             });
             toast.success(`Coupon ${data.code.toUpperCase()} créé !`);
@@ -101,7 +112,31 @@ export function AddCouponModal({ onCouponAdded }: AddCouponModalProps) {
 
                     <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase ml-1 text-slate-500">Date d'expiration (optionnel)</Label>
-                        <Input {...register("expiresAt")} type="date" className="h-12 rounded-2xl bg-slate-50 border-none px-4 font-bold" />
+                        <div className="flex gap-2">
+                            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button type="button" variant="outline" className="h-12 flex-1 justify-start rounded-2xl bg-slate-50 border-none px-4 font-bold">
+                                        <CalendarIcon className="mr-2 h-4 w-4 text-slate-400" />
+                                        {expiresAt ? format(expiresAt, "PPP", {locale: fr}) : <span className="text-slate-400">Sans date d'expiration</span>}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        mode="single"
+                                        locale={fr}
+                                        selected={expiresAt}
+                                        onSelect={(d) => { setExpiresAt(d); setCalendarOpen(false); }}
+                                        disabled={{ before: new Date() }}
+                                        autoFocus
+                                    />
+                                </PopoverContent>
+                            </Popover>
+                            {expiresAt && (
+                                <Button type="button" variant="ghost" size="icon" className="h-12 w-12 rounded-2xl" onClick={() => setExpiresAt(undefined)} aria-label="Effacer la date">
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            )}
+                        </div>
                     </div>
 
                     <DialogFooter className="pt-4">

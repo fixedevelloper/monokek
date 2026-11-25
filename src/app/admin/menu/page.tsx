@@ -1,7 +1,7 @@
 "use client";
 
 import React, {useEffect, useRef, useState} from "react";
-import {ArrowLeft, BookOpen, ChefHat, Download, FileUp, Loader2, Package, Search, Trash2, UtensilsCrossed,} from "lucide-react";
+import {ArrowLeft, BookOpen, ChefHat, Download, FileText, FileUp, Loader2, Package, Search, Trash2, UtensilsCrossed,} from "lucide-react";
 // UI Components
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
@@ -35,6 +35,7 @@ import {SupplementSheet} from "./SupplementSheet";
 import {useInfiniteQuery, useQuery, useQueryClient} from '@tanstack/react-query';
 import {useDebouncedValue} from "@/src/hooks/use-debounced-value";
 import {buildProductsArchive, saveBlob} from "@/src/lib/productArchive";
+import {buildStockPdf} from "@/src/lib/stockPdf";
 
 /** Query-key prefix shared by every branch section's infinite query — react-query
  * matches by prefix, so invalidating this one key refreshes every open section at once. */
@@ -77,6 +78,23 @@ export default function AdminMenuPage() {
             }
         } catch (error) {
             toast.error(getErrorMessage(error, "Erreur lors de l'export."));
+        } finally {
+            setExportStatus(null);
+        }
+    };
+
+    // PDF : produits + quantités en stock à l'entrepôt et dans chaque succursale.
+    const exportStockPdf = async () => {
+        if (exportStatus !== null) return;
+        setExportStatus("PDF…");
+        try {
+            const result = await buildStockPdf(activeBranchId);
+            if (result.total === 0) return void toast.error("Aucun produit à exporter.");
+            const date = new Date().toISOString().slice(0, 10);
+            if (!(await saveBlob(result.blob, `stock-produits-${date}.pdf`))) return;
+            toast.success(`${result.total} produits exportés en PDF (${result.places.join(", ")}).`);
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Erreur lors de l'export PDF."));
         } finally {
             setExportStatus(null);
         }
@@ -211,6 +229,16 @@ export default function AdminMenuPage() {
                             >
                                 {exportStatus !== null ? <Loader2 size={18} className="animate-spin"/> : <Download size={18} className="text-primary"/>}
                                 <span className="hidden lg:inline">{exportStatus ?? "Exporter"}</span>
+                            </Button>
+
+                            <Button
+                                variant="outline"
+                                disabled={exportStatus !== null}
+                                onClick={exportStockPdf}
+                                className="h-12 px-5 rounded-2xl border-none bg-white shadow-sm font-bold gap-2 hover:bg-slate-50 transition-all"
+                            >
+                                <FileText size={18} className="text-primary"/>
+                                <span className="hidden lg:inline">PDF stock</span>
                             </Button>
 
                             {isOwner && <DuplicatesDialog onMerged={refreshMenu}/>}

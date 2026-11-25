@@ -127,10 +127,12 @@ export async function parseProductsArchive(file: File): Promise<ParsedArchive> {
 
 /** « Enregistrer sous » natif dans Tauri ; téléchargement classique dans un navigateur. */
 export async function saveBlob(blob: Blob, defaultName: string): Promise<boolean> {
+    const ext = defaultName.split(".").pop()?.toLowerCase() ?? "zip";
+    const label = ext === "pdf" ? "Document PDF" : "Archive ZIP";
     if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
         const { save } = await import("@tauri-apps/plugin-dialog");
         const { writeFile } = await import("@tauri-apps/plugin-fs");
-        const path = await save({ defaultPath: defaultName, filters: [{ name: "Archive ZIP", extensions: ["zip"] }] });
+        const path = await save({ defaultPath: defaultName, filters: [{ name: label, extensions: [ext] }] });
         if (!path) return false;
         await writeFile(path, new Uint8Array(await blob.arrayBuffer()));
         return true;

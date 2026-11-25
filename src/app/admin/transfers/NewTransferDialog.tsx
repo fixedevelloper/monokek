@@ -91,7 +91,7 @@ export function NewTransferDialog({ open, onOpenChange, onCreated }: {
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
-      <DialogContent className="rounded-[2rem] max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="rounded-[2rem] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">
             {isSupplier ? "Nouvel envoi" : "Nouvelle demande"}
