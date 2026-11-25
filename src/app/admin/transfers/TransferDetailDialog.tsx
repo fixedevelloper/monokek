@@ -66,9 +66,10 @@ export function TransferDetailDialog({ transfer, scope, myLocationId, onClose, o
     onError: (e) => toast.error(getErrorMessage(e, "Action impossible")),
   });
 
+  const can = useAuthStore((s) => s.hasPermission); // avant tout retour anticipé : l'ordre des hooks doit rester constant
+
   if (!transfer) return null;
   const t = transfer;
-  const can = useAuthStore((s) => s.hasPermission);
   // Le lieu (scope) dit OÙ l'on agit ; la permission dit CE QUE l'on peut faire.
   const supplier = scope === "owner" || scope === "warehouse";
   const mayApprove = supplier && can(PERMISSIONS.APPROVE_TRANSFER);
