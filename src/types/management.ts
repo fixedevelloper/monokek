@@ -5,7 +5,7 @@
 // Doit matcher les noms de rôle réels renvoyés par monokek-spring (StaffDto.role,
 // voir V2__seed_rbac.sql) — PAS des libellés français : ROLE_CONFIG ci-dessous
 // s'en charge pour l'affichage.
-export type StaffRole = 'admin' | 'manager' | 'cashier' | 'waiter' | 'kitchen';
+export type StaffRole = 'admin' | 'manager' | 'cashier' | 'waiter' | 'kitchen' | 'warehouse';
 
 export interface Permission {
     id: number;
@@ -56,5 +56,9 @@ export const ROLE_CONFIG: Record<StaffRole, { label: string; color: string }> = 
     kitchen: {
         label: 'Cuisinier',
         color: 'bg-orange-500/10 text-orange-600 border-orange-200'
+    },
+    warehouse: {
+        label: 'Magasinier',
+        color: 'bg-amber-500/10 text-amber-700 border-amber-200'
     }
 };

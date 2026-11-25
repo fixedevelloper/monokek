@@ -11,6 +11,7 @@ import {Loader2, Lock, Mail, Phone, UserPlus} from "lucide-react";
 import {toast} from "sonner";
 import * as identityApi from "@/src/lib/api/identity";
 import {Branch} from "@/src/types/company";
+import {ROLE_CONFIG} from "@/src/types/management";
 import {AxiosError} from "axios";
 import {getErrorMessage} from "@/src/lib/errors";
 
@@ -127,7 +128,7 @@ export function AddStaffModal({ onStaffAdded, branches, roles }: AddStaffModalPr
                                             value={role.name}
                                             className="font-bold capitalize"
                                         >
-                                            {role.name}
+                                            {ROLE_CONFIG[role.name as keyof typeof ROLE_CONFIG]?.label ?? role.name}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>

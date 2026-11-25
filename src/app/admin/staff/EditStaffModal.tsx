@@ -12,6 +12,7 @@ import {toast} from "sonner";
 import {StaffMember} from "@/src/types/management";
 import * as identityApi from "@/src/lib/api/identity";
 import {Branch} from "@/src/types/company";
+import {ROLE_CONFIG} from "@/src/types/management";
 import {AxiosError} from "axios";
 
 interface Role {
@@ -134,7 +135,7 @@ export function EditStaffModal({ member, open, onOpenChange, onStaffUpdated, bra
                             <SelectContent className="rounded-2xl border-none shadow-xl font-bold">
                                 {roles.map((r) => (
                                     <SelectItem key={r.id} value={r.name} className="capitalize">
-                                        {r.name}
+                                        {ROLE_CONFIG[r.name as keyof typeof ROLE_CONFIG]?.label ?? r.name}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
