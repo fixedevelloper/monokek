@@ -5,6 +5,9 @@ const internalHost = process.env.TAURI_DEV_HOST || 'localhost';
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export',
+  experimental: {
+    agentUpgrade: 'security',
+  },
   images: {
     unoptimized: true,
   },
