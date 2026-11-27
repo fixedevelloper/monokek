@@ -1,6 +1,6 @@
 "use client";
 
-import React, {useState} from "react";
+import React, {useMemo, useState} from "react";
 import {ArrowLeft, CheckCircle2, Clock, FileText, Filter, Loader2, Search, TrendingUp, UserCircle2} from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
@@ -42,20 +42,38 @@ export default function CommissionsPage() {
         }
     });
 
-    // Calculs rapides pour les Stats Cards
-    const totalPending = commissions?.filter((c) => c.status === 'pending')
-        .reduce((acc, curr) => acc + curr.amount, 0) || 0;
+    // La recherche filtre le tableau, l'export ET les statistiques : tout reste cohérent avec ce qui est affiché.
+    const visible = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        return (commissions ?? []).filter((c) => !q || c.waiter_name?.toLowerCase().includes(q));
+    }, [commissions, searchQuery]);
+
+    // Statistiques réelles de la période affichée (aucune valeur d'exemple).
+    const stats = useMemo(() => {
+        const pending = visible.filter((c) => c.status === 'pending').reduce((acc, c) => acc + c.amount, 0);
+        const paid = visible.filter((c) => c.status === 'paid').reduce((acc, c) => acc + c.amount, 0);
+        const byWaiter = new Map<number, { name: string; total: number }>();
+        visible.forEach((c) => {
+            const entry = byWaiter.get(c.waiter_id) ?? { name: c.waiter_name, total: 0 };
+            entry.total += c.amount;
+            byWaiter.set(c.waiter_id, entry);
+        });
+        const top = [...byWaiter.values()].sort((a, b) => b.total - a.total)[0] ?? null;
+        const total = pending + paid;
+        return { pending, paid, top, pendingShare: total > 0 ? Math.round((pending / total) * 100) : null };
+    }, [visible]);
+    const totalPending = stats.pending;
 
     const handleExport = () => {
         const columns = ["Date", "Serveur", "Type", "Détail", "Montant", "Statut"];
-        const data = commissions?.map((c) => [
+        const data = visible.map((c) => [
             c.created_at,
             c.waiter_name,
             c.type.toUpperCase(),
             c.product_name,
             `${c.amount.toLocaleString()} F`,
             c.status_label
-        ]) || [];
+        ]);
 
         exportToPDF({
             title: "Rapport des Commissions",
@@ -127,7 +145,7 @@ export default function CommissionsPage() {
                 {/* Nouveau bouton d'exportation intégré */}
                 <Button
                     onClick={handleExport}
-                    disabled={isExporting || !commissions?.length}
+                    disabled={isExporting || !visible.length}
                     className="w-full md:w-auto bg-slate-900 hover:bg-black text-white rounded-2xl flex items-center gap-2 h-11 px-6 shadow-lg shadow-slate-200 transition-all active:scale-95"
                 >
                     {isExporting ? (
@@ -159,19 +177,27 @@ export default function CommissionsPage() {
                             <TrendingUp size={24} />
                         </div>
                         <div>
-                            <div className="font-black uppercase italic">Moussa Diop</div>
-                            <p className="text-[10px] font-bold text-slate-400">125,000 FCFA ce mois</p>
+                            {stats.top ? (
+                                <>
+                                    <div className="font-black uppercase italic">{stats.top.name}</div>
+                                    <p className="text-[10px] font-bold text-slate-400">{stats.top.total.toLocaleString()} FCFA sur la période</p>
+                                </>
+                            ) : (
+                                <p className="text-xs font-bold text-slate-400">Aucune commission sur la période</p>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
 
                 <Card className="border-none shadow-sm bg-white rounded-[2rem]">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-400">Status Moyen</CardTitle>
+                        <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-400">Part en attente</CardTitle>
                     </CardHeader>
                     <CardContent className="flex items-center gap-2 text-amber-500">
                         <Clock size={20} />
-                        <span className="font-black italic">85% EN ATTENTE</span>
+                        <span className="font-black italic">
+                            {stats.pendingShare === null ? "—" : `${stats.pendingShare}% EN ATTENTE`}
+                        </span>
                     </CardContent>
                 </Card>
             </div>
@@ -189,7 +215,10 @@ export default function CommissionsPage() {
                     </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                    {commissions?.map((comm) => (
+                    {!isLoading && visible.length === 0 && (
+                        <tr><td colSpan={5} className="p-10 text-center text-sm font-bold text-slate-400">Aucune commission sur cette période.</td></tr>
+                    )}
+                    {visible.map((comm) => (
                         <tr key={comm.id} className="hover:bg-slate-50/30 transition-colors">
                             <td className="p-5">
                                 <div className="flex items-center gap-3">
