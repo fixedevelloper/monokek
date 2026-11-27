@@ -135,7 +135,7 @@ export function AddProductModal({ onProductAdded, categories }: AddProductModalP
                             <Label className="text-[10px] font-black uppercase ml-1">Commission Spéciale (FCFA)</Label>
                             <div className="relative">
                                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input name="incentive_amount" type="number" className="pl-10 h-12 rounded-2xl bg-muted/30 border-none font-bold" />
+                                <Input name="incentive_amount" type="number" placeholder="Aucune" className="pl-10 h-12 rounded-2xl bg-muted/30 border-none font-bold" />
                             </div>
                         </div>
                         <div className="space-y-2">

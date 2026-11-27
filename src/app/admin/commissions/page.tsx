@@ -11,6 +11,7 @@ import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import * as orderingApi from "@/src/lib/api/ordering";
 import {toast} from "sonner";
 import {useExport} from "../../../hooks/useExport";
+import {CommissionPolicyCard} from "./CommissionPolicyCard";
 
 export default function CommissionsPage() {
     const [searchQuery, setSearchQuery] = useState("");
@@ -94,6 +95,7 @@ export default function CommissionsPage() {
                     </div>
                 </div>
             </div>
+            <CommissionPolicyCard />
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100">
                 <div className="flex flex-wrap items-center gap-4">
                     <div className="flex items-center gap-2 pl-2">
