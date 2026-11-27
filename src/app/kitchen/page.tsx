@@ -1,5 +1,6 @@
 "use client";
 
+import { useCoalescedCallback } from "@/src/hooks/use-coalesced-callback";
 import {useCallback, useEffect, useState} from "react";
 import Link from "next/link";
 import {Beer, Coffee, Flame, LayoutGrid, Loader2, LogOut, Utensils} from "lucide-react";
@@ -54,11 +55,12 @@ export default function KitchenDashboard() {
 
     // SSE : pas d'équivalent "station.updated" côté backend — un nouveau ticket
     // change forcément le compteur d'une station, donc on refetch sur ticket.created.
+    const fetchStationsCoalesced = useCoalescedCallback(() => { fetchStations(); }, 1000);
     useEffect(() => {
-        const off = on('ticket.created', () => { fetchStations(); });
-        const offUpdated = on('ticket.updated', () => { fetchStations(); });
+        const off = on('ticket.created', () => { fetchStationsCoalesced(); });
+        const offUpdated = on('ticket.updated', () => { fetchStationsCoalesced(); });
         return () => { off(); offUpdated(); };
-    }, [on, fetchStations]);
+    }, [on, fetchStationsCoalesced]);
     // Petit helper pour choisir une icône selon le nom de la station
     const getStationIcon = (name: string) => {
         const n = name.toLowerCase();

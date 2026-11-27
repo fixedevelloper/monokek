@@ -1,5 +1,6 @@
 "use client";
 
+import { useCoalescedCallback } from "@/src/hooks/use-coalesced-callback";
 import { useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
@@ -63,13 +64,15 @@ export default function KitchenTicketsContent() {
     });
 
     // 2. Écoute temps réel via SSE — payload léger (pas les items), donc on
+    // Au plus un rafraîchissement du tableau par seconde, quel que soit le nombre d'événements (le son et le toast restent immédiats).
+    const refreshBoard = useCoalescedCallback(() => { queryClient.invalidateQueries({ queryKey: ticketsQueryKey }); }, 1000);
     useEffect(() => {
         if (!stationId) return;
 
         const off = on('ticket.created', (payload) => {
             if (String(payload?.stationId) !== String(stationId)) return;
 
-            queryClient.invalidateQueries({ queryKey: ticketsQueryKey });
+            refreshBoard();
             const audio = new Audio('/sounds/new-order.mp3');
             audio.play().catch(() => {});
             toast.info(`Nouveau ticket : Table ${payload?.tableName || 'N/A'}`);
@@ -78,11 +81,11 @@ export default function KitchenTicketsContent() {
         // Un autre écran de la même cuisine a fait avancer un ticket : rafraîchir sans bruit ni toast.
         const offUpdated = on('ticket.updated', (payload) => {
             if (String(payload?.stationId) !== String(stationId)) return;
-            queryClient.invalidateQueries({ queryKey: ticketsQueryKey });
+            refreshBoard();
         });
 
         return () => { off(); offUpdated(); };
-    }, [on, stationId]);
+    }, [on, stationId, refreshBoard]);
 
     // 3. Mise à jour du statut
     const handleStatusChange = async (ticketId: number, nextStatus: KitchenTicket['status']) => {

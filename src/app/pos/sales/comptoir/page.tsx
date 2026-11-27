@@ -1,5 +1,6 @@
 "use client";
 
+import { useCoalescedCallback } from "@/src/hooks/use-coalesced-callback";
 import { useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
@@ -67,20 +68,21 @@ export default function ComptoirPage() {
 
     // 3. Écoute temps réel via SSE — payload léger (pas les items), donc on
     // refetch la liste complète plutôt que de tenter de reconstruire un ticket.
+    const refreshBoard = useCoalescedCallback(() => { queryClient.invalidateQueries({ queryKey: ticketsQueryKey }); }, 1000);
     useEffect(() => {
         if (!stationId) return;
 
         const off = on('ticket.created', (payload) => {
             if (Number(payload?.stationId) !== stationId) return;
 
-            queryClient.invalidateQueries({ queryKey: ticketsQueryKey });
+            refreshBoard();
             const audio = new Audio('/sounds/notification.mp3');
             audio.play().catch(() => {});
             toast.info(`Nouveau ticket : Table ${payload?.tableName || 'N/A'}`);
         });
 
         return off;
-    }, [on, stationId]);
+    }, [on, stationId, refreshBoard]);
 
     // 4. Mise à jour du statut
     const handleStatusChange = async (ticketId: number, nextStatus: KitchenTicket['status']) => {

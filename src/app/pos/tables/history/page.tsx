@@ -1,4 +1,5 @@
 'use client'
+import { useCoalescedCallback } from "@/src/hooks/use-coalesced-callback";
 import React, {useCallback, useEffect, useState} from 'react';
 import {Calendar as CalendarIcon, CheckCircle2, Clock, Filter, Loader2, Timer, Utensils} from 'lucide-react';
 import {Badge} from "@/components/ui/badge";
@@ -47,17 +48,18 @@ export default function WaiterHistory() {
     fetchMyOrders();
   }, [fetchMyOrders]);
 
-  // Écoute SSE (uniquement pour la date du jour) — payload léger, on refetch plutôt que de patcher.
+  // Écoute SSE (uniquement pour la date du jour) — payload léger, on refetch plutôt que de patcher (au plus une fois par rafale).
+  const fetchMyOrdersCoalesced = useCoalescedCallback(() => { fetchMyOrders(); });
   useEffect(() => {
     if (date?.toDateString() !== new Date().toDateString()) return;
 
     const off = on('order.updated', () => {
-      fetchMyOrders();
+      fetchMyOrdersCoalesced();
       new Audio('/sounds/notification.mp3').play().catch(() => {});
     });
 
     return off;
-  }, [on, date, fetchMyOrders]);
+  }, [on, date, fetchMyOrdersCoalesced]);
   const handleServeOrder = async (orderId: number) => {
     try {
       // Optionnel: Optimistic UI update pour plus de réactivité

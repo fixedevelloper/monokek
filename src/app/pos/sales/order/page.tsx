@@ -1,5 +1,6 @@
 "use client";
 
+import { useCoalescedCallback } from "@/src/hooks/use-coalesced-callback";
 import React, {useEffect, useState} from 'react';
 import {CreditCard, History, Printer, ReceiptText, RotateCcw, Search} from 'lucide-react';
 import {Button} from '@/components/ui/button';
@@ -66,18 +67,20 @@ export default function PosSalesPage() {
     // avec sa table/ses rounds) — chaque event déclenche donc un refetch de la liste
     // plutôt qu'un patch local ; l'effet sur `orders` ci-dessous resynchronise
     // selectedSale si le ticket actuellement ouvert a changé.
+    // Une rafale d'événements ne refait qu'UN refetch de la liste (useCoalescedCallback) ; les toasts restent un par événement.
+    const refetchOrdersCoalesced = useCoalescedCallback(() => { refetchOrders(); });
     useEffect(() => {
         const offCreated = on('order.created', (payload) => {
-            refetchOrders();
+            refetchOrdersCoalesced();
             toast.success(`Commande ${payload?.reference ?? ''} créée !`.trim());
         });
 
         const offTicket = on('ticket.created', () => {
-            refetchOrders();
+            refetchOrdersCoalesced();
         });
 
         const offUpdated = on('order.updated', (payload) => {
-            refetchOrders();
+            refetchOrdersCoalesced();
             toast.info(`Commande #${payload?.orderId ?? ''} : ${payload?.newStatus ?? ''}`.trim());
         });
 
@@ -86,7 +89,7 @@ export default function PosSalesPage() {
             offTicket();
             offUpdated();
         };
-    }, [on]);
+    }, [on, refetchOrdersCoalesced]);
 
     const handlePreviewCloture = async () => {
         setIsCashSummaryLoading(true);

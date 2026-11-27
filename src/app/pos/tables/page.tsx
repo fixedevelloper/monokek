@@ -1,5 +1,6 @@
 "use client";
 
+import {useCoalescedCallback} from "@/src/hooks/use-coalesced-callback";
 import React, {useEffect, useMemo, useState} from 'react';
 import {ChevronRight, History, LayoutGrid, LogOut, TableIcon, Users} from 'lucide-react';
 import {Button} from '@/components/ui/button';
@@ -44,19 +45,18 @@ export default function TablesPage() {
     // Le payload SSE est volontairement léger (juste des ids), donc on ne
     // patch plus le cache à la main : un event = un signal pour refetch
     // ['floors'] auprès du backend, qui reste la seule source de vérité.
+    // Une table change d'état quand une commande s'ouvre, se paie, s'annule ou se déplace : les tickets de cuisine n'y touchent pas.
+    // Et une rafale d'événements ne refait qu'UN refetch (cf. useCoalescedCallback), pas un par événement.
+    const refreshFloors = useCoalescedCallback(() => queryClient.invalidateQueries({queryKey: ['floors']}));
     useEffect(() => {
-        const refreshFloors = () => queryClient.invalidateQueries({queryKey: ['floors']});
-
         const offCreated = on('order.created', refreshFloors);
         const offUpdated = on('order.updated', refreshFloors);
-        const offTicket = on('ticket.created', refreshFloors);
 
         return () => {
             offCreated();
             offUpdated();
-            offTicket();
         };
-    }, [on, queryClient]);
+    }, [on, refreshFloors]);
 
     // 4. Logique dérivée (Simple et performante)
     const activeZone = useMemo(() =>
