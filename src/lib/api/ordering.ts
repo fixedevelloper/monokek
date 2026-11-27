@@ -190,8 +190,11 @@ export async function markAsServed(orderId: number): Promise<void> {
     await api.post(`/api/pos/orders/${orderId}/serve`);
 }
 
-export async function updateRoundItemQty(roundId: number, itemId: number, qty: number): Promise<Order> {
-    const response = await api.patch(`/api/pos/rounds/${roundId}/items/${itemId}`, { qty });
+/** Lowering a quantity (or removing the item) needs a manager's PIN and a reason — the kitchen already has the item. */
+export async function updateRoundItemQty(
+    roundId: number, itemId: number, qty: number, approval?: { managerPin: string; reason: string },
+): Promise<Order> {
+    const response = await api.patch(`/api/pos/rounds/${roundId}/items/${itemId}`, { qty, ...approval });
     return mapOrderDtoToOrder(unwrapRaw(response));
 }
 
