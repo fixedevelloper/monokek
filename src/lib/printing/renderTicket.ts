@@ -12,6 +12,8 @@ interface KitchenTicketContent {
 
 /** Mirrors com.monokek.printing.application.dto.ReceiptContent. */
 interface ReceiptContent {
+    /** A reprint of a receipt already given to the customer: the paper must say so. */
+    duplicate?: boolean | null;
     orderId: number;
     orderUuid: string;
     reference: string;
@@ -180,6 +182,7 @@ async function renderReceipt(content: ReceiptContent, charsPerLine: number): Pro
     if (content.storeAddress) sections.push(darkText(content.storeAddress, { align: "center" }));
     if (content.storePhone) sections.push(darkText(content.storePhone, { align: "center" }));
     sections.push(darkText(printedAt(), { align: "center" }));
+    if (content.duplicate) sections.push(title("*** DUPLICATA ***", { align: "center", bold: true }));
     sections.push(line("="));
     sections.push(darkText(`Réf : ${content.reference}`));
     if (content.tableName) sections.push(darkText(`Table : ${content.tableName}`));
